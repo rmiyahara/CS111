@@ -18,7 +18,9 @@ void inputRedirection(char* input) {
         close(ifd);
     }
     else {
-        //TODO: add empty case
+        fprintf(stderr, "An error with the input has occured. \nInput file: %s cannot be opened. \nError number: %d \n Error message: %s \n", input, errno, strerror(errno));
+        //TODO: Clean this up
+        exit(2);
     }
 }
 
@@ -31,40 +33,54 @@ void outputRedirection(char* output) {
 	    close(ofd);
     }
     else {
-        //TODO: add empty case
+        //TODO: Error message
+        exit(3);
     }
 }
 
-void sigfault_handler(int hold) {
-    if (hold == SIGEGV) {
-        fprintf(stderr, "Segmentation fault (core dumped)\n");
+void segfault_handler(int hold) {
+    if (hold == SIGSEGV) {
+        fprintf(stderr, "Segmentation fault has been caught\n");
         exit(4);
     }
 }
 
 int main(int argc, char** argv) {
-    struct option flags[] {
+    struct option flags[] = { //Sets up the 4 viable flags
         {"input", 1, NULL, 'i'},
         {"output", 1, NULL, 'o'},
         {"segfault", 0, NULL, 's'},
         {"catch", 0, NULL, 'c'}
     };
 
+    char* input = NULL;
+    char* output = NULL;
+    char* death = NULL;
+
     int curr_param = getopt_long(argc, argv, "i:o:sc", flags, NULL); //Holds the current parameter that is being analyzed
     while(curr_param != -1) {
         switch (curr_param) { //TODO: Add cases
             case 'i':
+                input = optarg; //optarg becomes input file when the input flag is the current parameter
                 break;
             case 'o':
+                output = optarg; //optarg becomes output file when the output flag is the current parameter
                 break;
             case 's':
+                *death = '6'; //By setting a null pointer equal to something, we get a segfault
                 break;
-            case 'c':
+            case 'c': //TODO: Doesn't work
+                signal(SIGSEGV, segfault_handler);
                 break;
             default:
-                fprintf(stderr, "Incorrect usage, please use this program in the following format: ./lab0 --input=filename --output=filename [--segfault --catch]\n");
+                fprintf(stderr, "Incorrect usage, please use this program in the following format: ./lab0 [--segfault --catch] --input=filename --output=filename\n");
                 exit(1);
         }
         int curr_param = getopt_long(argc, argv, "i:o:sc", flags, NULL); //Moves current parameter to the next one
     }
+    if (input) //Set input file
+        inputRedirection(input);
+    if (output) //Set output file
+        outputRedirection(output);
+    exit(0); //We made it; successful run through
 }
