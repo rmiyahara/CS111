@@ -2,3 +2,66 @@ NAME: Ryan Miyahara
 EMAIL: rmiyahara144@gmail.com
 ID: 804585999
 
+----------------
+|Included Files|
+----------------
+Within this submission are the following files:
+
+lab0.c
+This file contains code which copies its input into its output. When compiled, it uses the following
+format:
+./lab0 [--catch --segfault] --input inputfilename --output outputfilename
+The catch flag sets up a handler which catches segmentation faults. When caught, it will exit with
+an exit code of 4.
+The segfault flag purposefully creates a segmentation fault.
+The input flag is required and takes in a file to be copied.
+The output flag is required and writes to a file.
+Below are a list of exit codes (Taken from P0.html)
+0 ... copy successful
+1 ... unrecognized argument
+2 ... unable to open input file
+3 ... unable to open output file
+4 ... caught and received SIGSEGV
+
+Makefile
+This file builds the executable, runs tests, builds the submission, and cleans the working directory.
+These can be utilized by using make, make check, make dist, and make clean respectively. In this
+file I used a .SILENT function to keep my test script clean which I found here:
+https://stackoverflow.com/questions/24005166/gnu-make-silent-by-default
+I also used the expression "$$?" which returns the latest function's exit code. I found this here:
+https://unix.stackexchange.com/questions/7704/what-is-the-meaning-of-in-a-shell-script
+When all the test are passed, "Passed all the tests!" is displayed. If any tests are failed, their
+names are displayed instead.
+
+backtrace.png
+This is a screenshot of a segfault and its associated stack-trace
+
+breakpoint.png
+This is a screenshot of a breakpoint in gdb and a variable inspection.
+
+-------
+|Tests|
+-------
+Below are the tests which are initiated using the make check command:
+
+catchsegfault-test
+This test raises the catch and segfault flags and makes sure the program handles it correctly.
+
+normal-test
+This test provides an input file, with contents in it, and checks to see if the program runs
+successfully.
+
+noinput-test
+This test runs the program with an input file that doesn't exist.
+
+badoutput-test
+This test removes writing privileges from the program's output file. It then attempts to run the
+executable and makes sure the correct exit code is given.
+
+catchsegfaultextend-test
+Similar to the catchsegfault-test, but this time a valid input and output are given. This makes sure
+the program still crashes correctly.
+
+badargument-test
+This test provides a flag which isn't accepted by the program. It makes sure the correct exit code is
+given.
