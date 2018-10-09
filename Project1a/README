@@ -1,0 +1,29 @@
+NAME: Ryan Miyahara
+EMAIL: rmiyahara144@gmail.com
+ID: 804585999
+
+------------------
+| Included Files |
+------------------
+Within this submission are the following files:
+
+lab1a.c
+format: ./lab1a [--shell --degbug]
+
+Makefile
+This builds the executable, cleans the working directory of files made while building the executable, 
+and builds the submission. These are done using make, make clean, and make dist respectively.
+
+--------------
+| References |
+--------------
+man pages
+    https://linux.die.net/man/3/termios
+    https://linux.die.net/man/2/fork
+    https://linux.die.net/man/2/waitpid
+    https://linux.die.net/man/3/exec
+    https://linux.die.net/man/2/pipe
+    https://linux.die.net/man/3/kill
+    https://linux.die.net/man/3/stderr
+    https://linux.die.net/man/2/poll
+    https://linux.die.net/man/3/isatty
