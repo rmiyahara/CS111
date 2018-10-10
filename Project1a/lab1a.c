@@ -13,11 +13,18 @@ ID: 804585999
 #include <getopt.h>
 #include <unistd.h>
 #include <termios.h>
+#include <pthread.h>
 #include <poll.h>
 
 //Global Variables
 bool debug = false; //Set to true if the --debug flag is used
+bool shell = false; //Set to true if the --shell flag is used
 struct termios holdme; //Will hold the terminal's mode
+struct termios alteredterminal; //Holds terminal's mode after changes have been made
+int pipe0[2]; //Holds file descriptors of the incoming shell
+int pipe1[2]; //Holds file descriptors of the outgoing shell
+pid_t child; //Holds the id for the child
+char* buffer;//Buffer for large reads as mentioned in P1.html
 
 void debug_print(int message) {
     switch (message) {
@@ -30,8 +37,8 @@ void debug_print(int message) {
         case 2: //Successful end
             fprintf(stderr, "Successful end. Shutdown on EOF. Exit code: 0.\n");
             break;
-        case 3: //STDIN was not a terminal
-            fprintf(stderr, "STDIN was not a terminal.\n")
+        case 3:  //Input has begun setup
+            fprintf(stderr, "Changing terminal modes.\n");
             break;
         case 4: //Terminal saved
             fprintf(stderr, "Terminal's mode has been saved. \n");
@@ -39,6 +46,8 @@ void debug_print(int message) {
         case 5: //Terminal replaced
             fprintf(stderr, "Terminal's mode has been replaced. \n");
             break;
+        case 6:
+            fprintf(stderr, "")
         default:
             fprintf(stderr, "You shouldn't get here!\n");
     }
@@ -48,9 +57,18 @@ void debug_print(int message) {
 //Handler functions
 void terminalerror_handler() { //Called if STDIN does not refer to a terminal
     fprintf(stderr, "STDIN does not refer to a terminal.\nError number: %d\nError message: %s\n", errno, strerror(errno));
-    if (debug)
-        debug_print(3);
     exit(1);
+}
+
+void pipeerror_handler() { //Called if there is an error closing pipes
+    fprintf(stderr, "Pipe's unable to be closed.\nError number: %d\nError message: %s\n", errno, strerror(errno));
+    if (debug)
+        debug_print(6);
+    exit(1);
+}
+
+void ctrlc_handler() { //Used to 
+
 }
 
 //Terminal functions
@@ -78,6 +96,33 @@ void replace_terminal() { //Puts back the terminal's states
     return;
 }
 
+void input_setup() { //Called by main function to set terminal attributes
+    if (debug)
+        debug_print(3);
+
+    hold_terminal();
+    tcgetattr(STDIN_FILENO, &alteredterminal);
+
+    //Following modifications taken from P1.html
+    alteredterminal.c_iflag = ISTRIP;	/* only lower 7 bits*/
+	alteredterminal.c_oflag = 0;		/* no processing	*/
+	alteredterminal.c_lflag = 0;		/* no processing	*/
+
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &alteredterminal)) {
+        fprintf(stderr, "Unable to save modified terminal's modes. \nError number: %d\nError message: %s\n", errno, strerror(errno));
+        exit(1);
+    }
+
+}
+
+void close_pipes() { //Closes all pipes from pipe1 and pipe2
+    int i;
+    for (i = 0; i < 2; i++) {
+        close(pipe0[i]);
+        close(pipe1[i]);
+    }
+}
+
 int main(int argc, char** argv) {
 
     //Variable setup section
@@ -86,7 +131,7 @@ int main(int argc, char** argv) {
         {"debug", 0, NULL, 'd'}
     }; //Option data structure referenced here: https://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
     int curr_param; //Contains the parameter that is currently being analyzed
-    bool shell = false; //Set to true if the --shell flag is used
+    buffer = (char*)malloc(256 * sizeof(char));
     
     //Argument parsing section
     while ((curr_param = getopt_long(argc, argv, "sd", flags, NULL)) != -1) {
@@ -111,7 +156,7 @@ int main(int argc, char** argv) {
     
 
 
-
+    free(buffer);
     if (debug)
         debug_print(2);
     exit(0);
