@@ -17,7 +17,7 @@ and builds the submission. These are done using make, make clean, and make dist 
 --------------
 | References |
 --------------
-man pages
+man pages:
     https://linux.die.net/man/3/termios
     https://linux.die.net/man/2/fork
     https://linux.die.net/man/2/waitpid
@@ -27,3 +27,11 @@ man pages
     https://linux.die.net/man/3/stderr
     https://linux.die.net/man/2/poll
     https://linux.die.net/man/3/isatty
+
+function information:
+    http://pubs.opengroup.org/onlinepubs/007904875/functions/tcgetattr.html
+    http://pubs.opengroup.org/onlinepubs/009695399/functions/tcsetattr.html
+    https://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
+
+Some of my code for the argument parsing has been reused from Project 0:
+    https://github.com/rmiyahara/CS111/tree/master/Project0

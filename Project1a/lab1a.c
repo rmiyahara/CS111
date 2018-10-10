@@ -15,6 +15,10 @@ ID: 804585999
 #include <termios.h>
 #include <poll.h>
 
+//Global Variables
+bool debug = false; //Set to true if the --debug flag is used
+struct termios holdme; //Will hold the terminal's mode
+
 void debug_print(int message) {
     switch (message) {
         case 0: //Debug flag
@@ -29,6 +33,12 @@ void debug_print(int message) {
         case 3: //STDIN was not a terminal
             fprintf(stderr, "STDIN was not a terminal.\n")
             break;
+        case 4: //Terminal saved
+            fprintf(stderr, "Terminal's mode has been saved. \n");
+            break;
+        case 5: //Terminal replaced
+            fprintf(stderr, "Terminal's mode has been replaced. \n");
+            break;
         default:
             fprintf(stderr, "You shouldn't get here!\n");
     }
@@ -36,7 +46,7 @@ void debug_print(int message) {
 }
 
 //Handler functions
-void terminalerror_handler(bool debug) { //Called if STDIN does not refer to a terminal
+void terminalerror_handler() { //Called if STDIN does not refer to a terminal
     fprintf(stderr, "STDIN does not refer to a terminal.\nError number: %d\nError message: %s\n", errno, strerror(errno));
     if (debug)
         debug_print(3);
@@ -44,6 +54,29 @@ void terminalerror_handler(bool debug) { //Called if STDIN does not refer to a t
 }
 
 //Terminal functions
+void hold_terminal() { //TODO: Holds the terminal's states
+    if (debug)
+        debug_print(4);
+
+    if (tcgetattr(STDIN_FILENO, &holdme)) {
+        //Info for this function found here: http://pubs.opengroup.org/onlinepubs/007904875/functions/tcgetattr.html
+        fprintf(stderr, "Unable to save terminal's modes. \nError number: %d\nError message: %s\n", errno, strerror(errno));
+        exit(1);
+    }
+    return;
+}
+
+void replace_terminal() { //Puts back the terminal's states
+    if (debug)
+        debug_print(5);
+
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &holdme)) {
+        //Info for this function found here: http://pubs.opengroup.org/onlinepubs/009695399/functions/tcsetattr.html
+        fprintf(stderr, "Unable to save terminal's modes. \nError number: %d\nError message: %s\n", errno, strerror(errno));
+        exit(1);
+    }
+    return;
+}
 
 int main(int argc, char** argv) {
 
@@ -54,7 +87,6 @@ int main(int argc, char** argv) {
     }; //Option data structure referenced here: https://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
     int curr_param; //Contains the parameter that is currently being analyzed
     bool shell = false; //Set to true if the --shell flag is used
-    bool debug = false; //Set to true if the --debug flag is used
     
     //Argument parsing section
     while ((curr_param = getopt_long(argc, argv, "sd", flags, NULL)) != -1) {
@@ -76,6 +108,7 @@ int main(int argc, char** argv) {
 
     if (!isatty(STDIN_FILENO))
         terminalerror_handler(debug);
+    
 
 
 
