@@ -21,8 +21,8 @@ bool debug = false; //Set to true if the --debug flag is used
 bool shell = false; //Set to true if the --shell flag is used
 struct termios holdme; //Will hold the terminal's mode
 struct termios alteredterminal; //Holds terminal's mode after changes have been made
-int pipe0[2]; //Holds file descriptors of the incoming shell
-int pipe1[2]; //Holds file descriptors of the outgoing shell
+int pipe0[2]; //Holds file descriptors of the pipe that goes from the terminal to the shell
+int pipe1[2]; //Holds file descriptors of the pipe that goes from the shell to the terminal
 pid_t child; //Holds the id for the child
 char* buffer;//Buffer for large reads as mentioned in P1A.html
 
@@ -61,9 +61,6 @@ void debug_print(int message) {
         case 10: //Char detected
             fprintf(stderr, "Char detected.\n");
             break;
-        case 11: //Pipes opened
-            fprintf(stderr, "Pipes have been opened.\n");
-            break;
         default:
             fprintf(stderr, "You shouldn't get here!\n");
     }
@@ -84,7 +81,7 @@ void pipeerror_handler() { //Called if there is an error closing pipes
 }
 
 //Terminal functions
-void hold_terminal() { //TODO: Holds the terminal's states
+void hold_terminal() { //Holds the terminal's states
     if (debug)
         debug_print(4);
 
@@ -108,6 +105,17 @@ void replace_terminal() { //Puts back the terminal's states
     return;
 }
 
+void open_pipes() {
+    if (!(pipe(pipe0))) {
+        fprintf(stderr, "Unable to open pipe from terminal to shell.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    if (!(pipe(pipe1))) {
+        fprintf(stderr, "Unable to open pipe from shell to terminal.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+}
+
 void shell_process() { //Run if shell flag is raised
     buffer = (char*)malloc(256 * sizeof(char));
     
@@ -117,6 +125,7 @@ void shell_process() { //Run if shell flag is raised
     free(buffer);
     return;
 }
+
 
 void write_terminal() { //Run if shell flag isnt raised
     char hold; //Not using buffer because keyboards will return 1
@@ -159,7 +168,6 @@ void write_terminal() { //Run if shell flag isnt raised
     return;
 }
 
-
 void input_setup() { //Called by main function to set terminal attributes
     if (debug)
         debug_print(3);
@@ -179,28 +187,6 @@ void input_setup() { //Called by main function to set terminal attributes
         exit(1);
     }
 
-}
-
-void open_pipes() { //Open pipes
-    //Pipe description here: https://linux.die.net/man/2/pipe
-    if ((pipe(pipe0)) == -1) {
-        fprintf(stderr, "Unable to open pipe 0. Error message: %s\n Error number: %d\n", strerror(errno), errno);
-        exit(1);
-    }
-    if ((pipe(pipe1)) == -1) {
-        fprintf(stderr, "Unable to open pipe 1. Error message: %s\n Error number: %d\n", strerror(errno), errno);
-        exit(1);
-    }
-    if (debug)
-        debug_print(11);
-    return;
-}
-void close_pipes() { //Closes all pipes from pipe0 and pipe1
-    int i;
-    for (i = 0; i < 2; i++) {
-        close(pipe0[i]);
-        close(pipe1[i]);
-    }
 }
 
 int main(int argc, char** argv) {
@@ -238,8 +224,8 @@ int main(int argc, char** argv) {
 
     //Check shell flag and execute accordingly
     if (shell) {
-        shell_process();
         open_pipes();
+        shell_process();
     }
     else
         write_terminal();
