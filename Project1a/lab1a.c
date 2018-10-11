@@ -24,7 +24,7 @@ struct termios alteredterminal; //Holds terminal's mode after changes have been 
 int pipe0[2]; //Holds file descriptors of the incoming shell
 int pipe1[2]; //Holds file descriptors of the outgoing shell
 pid_t child; //Holds the id for the child
-char* buffer;//Buffer for large reads as mentioned in P1.html
+char* buffer;//Buffer for large reads as mentioned in P1A.html
 
 void debug_print(int message) {
     switch (message) {
@@ -35,7 +35,7 @@ void debug_print(int message) {
             fprintf(stderr, "Shell mode has been enabled.\n");
             break;
         case 2: //Successful end
-            fprintf(stderr, "Successful end. Shutdown on EOF. Exit code: 0.\n");
+            fprintf(stderr, "Successful end. Shutdown on EOF.\n");
             break;
         case 3:  //Input has begun setup
             fprintf(stderr, "Changing terminal modes.\n");
@@ -46,8 +46,24 @@ void debug_print(int message) {
         case 5: //Terminal replaced
             fprintf(stderr, "Terminal's mode has been replaced. \n");
             break;
-        case 6:
-            fprintf(stderr, "")
+        case 6: //Buffer is being freed
+            fprintf(stderr, "Buffer is about to be freed");
+            break;
+        case 7: //Newline detected
+            fprintf(stderr, "Newline detected.\n");
+            break;
+        case 8: //^C reached
+            fprintf(stderr, "^C detected.\n");
+            break;
+        case 9: //^D reached
+            fprintf(stderr, "^D detected.\n");
+            break;
+        case 10: //Char detected
+            fprintf(stderr, "Char detected.\n");
+            break;
+        case 11: //Pipes opened
+            fprintf(stderr, "Pipes have been opened.\n");
+            break;
         default:
             fprintf(stderr, "You shouldn't get here!\n");
     }
@@ -56,19 +72,15 @@ void debug_print(int message) {
 
 //Handler functions
 void terminalerror_handler() { //Called if STDIN does not refer to a terminal
-    fprintf(stderr, "STDIN does not refer to a terminal.\nError number: %d\nError message: %s\n", errno, strerror(errno));
+    fprintf(stderr, "STDIN does not refer to a terminal.");
     exit(1);
 }
 
 void pipeerror_handler() { //Called if there is an error closing pipes
-    fprintf(stderr, "Pipe's unable to be closed.\nError number: %d\nError message: %s\n", errno, strerror(errno));
+    fprintf(stderr, "Issue closing pipes.\nError message: %s\n Error number: %d\n",strerror(errno), errno);
     if (debug)
         debug_print(6);
     exit(1);
-}
-
-void ctrlc_handler() { //Used to 
-
 }
 
 //Terminal functions
@@ -78,7 +90,7 @@ void hold_terminal() { //TODO: Holds the terminal's states
 
     if (tcgetattr(STDIN_FILENO, &holdme)) {
         //Info for this function found here: http://pubs.opengroup.org/onlinepubs/007904875/functions/tcgetattr.html
-        fprintf(stderr, "Unable to save terminal's modes. \nError number: %d\nError message: %s\n", errno, strerror(errno));
+        fprintf(stderr, "Unable to save terminal modes.\nError message: %s\n Error number: %d\n",strerror(errno), errno);
         exit(1);
     }
     return;
@@ -90,32 +102,100 @@ void replace_terminal() { //Puts back the terminal's states
 
     if (tcsetattr(STDIN_FILENO, TCSANOW, &holdme)) {
         //Info for this function found here: http://pubs.opengroup.org/onlinepubs/009695399/functions/tcsetattr.html
-        fprintf(stderr, "Unable to save terminal's modes. \nError number: %d\nError message: %s\n", errno, strerror(errno));
+        fprintf(stderr, "Unable to replace terminal modes.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
         exit(1);
     }
     return;
 }
+
+void shell_process() { //Run if shell flag is raised
+    buffer = (char*)malloc(256 * sizeof(char));
+    
+    //Free buffer
+    if (debug)
+        debug_print(6);
+    free(buffer);
+    return;
+}
+
+void write_terminal() { //Run if shell flag isnt raised
+    char hold; //Not using buffer because keyboards will return 1
+    ssize_t curr_char; //Will hold the current char input
+
+    while ((curr_char = read(STDIN_FILENO, &hold, 1))) {
+        if (curr_char < 0) {
+            fprintf(stderr, "Unable to read from source.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+            exit(1);
+        }
+
+        switch (hold){
+            case '\r':
+            case '\n':
+                if (debug)
+                    debug_print(7);
+                char carriage_return[2] = {'\r', '\n'}; //P1A.html specifies all newlines be saved as <cr><lf>
+                if (write(STDOUT_FILENO, &carriage_return, 2) < 0) {
+                    fprintf(stderr, "Unable to write to output.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                break;
+            case 0x03: //^C
+                if (debug)
+                    debug_print(8);
+                break;
+            case 0x04: //^D
+                if (debug)
+                    debug_print(9);
+                return;
+            default:
+                if (debug)
+                    debug_print(10);
+                if (write(STDOUT_FILENO, &hold, 1) < 0) {
+                    fprintf(stderr, "Unable to write to output.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+        }
+    }
+    return;
+}
+
 
 void input_setup() { //Called by main function to set terminal attributes
     if (debug)
         debug_print(3);
 
     hold_terminal();
+    atexit(replace_terminal);
     tcgetattr(STDIN_FILENO, &alteredterminal);
 
-    //Following modifications taken from P1.html
+    //Following modifications taken from P1A.html
     alteredterminal.c_iflag = ISTRIP;	/* only lower 7 bits*/
 	alteredterminal.c_oflag = 0;		/* no processing	*/
 	alteredterminal.c_lflag = 0;		/* no processing	*/
 
-    if (tcsetattr(STDIN_FILENO, TCSANOW, &alteredterminal)) {
-        fprintf(stderr, "Unable to save modified terminal's modes. \nError number: %d\nError message: %s\n", errno, strerror(errno));
+    //Referenced here: http://man7.org/linux/man-pages/man3/atexit.3.html
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &alteredterminal)) { //TCSANOW suggested by P1A.html
+        fprintf(stderr, "Unable to set new terminal modes.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
         exit(1);
     }
 
 }
 
-void close_pipes() { //Closes all pipes from pipe1 and pipe2
+void open_pipes() { //Open pipes
+    //Pipe description here: https://linux.die.net/man/2/pipe
+    if ((pipe(pipe0)) == -1) {
+        fprintf(stderr, "Unable to open pipe 0. Error message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    if ((pipe(pipe1)) == -1) {
+        fprintf(stderr, "Unable to open pipe 1. Error message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    if (debug)
+        debug_print(11);
+    return;
+}
+void close_pipes() { //Closes all pipes from pipe0 and pipe1
     int i;
     for (i = 0; i < 2; i++) {
         close(pipe0[i]);
@@ -131,7 +211,6 @@ int main(int argc, char** argv) {
         {"debug", 0, NULL, 'd'}
     }; //Option data structure referenced here: https://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
     int curr_param; //Contains the parameter that is currently being analyzed
-    buffer = (char*)malloc(256 * sizeof(char));
     
     //Argument parsing section
     while ((curr_param = getopt_long(argc, argv, "sd", flags, NULL)) != -1) {
@@ -151,12 +230,21 @@ int main(int argc, char** argv) {
     if (debug && shell)
         debug_print(1);
 
+    //Check input and set up
     if (!isatty(STDIN_FILENO))
-        terminalerror_handler(debug);
-    
+        terminalerror_handler();
+    else
+        input_setup();
 
+    //Check shell flag and execute accordingly
+    if (shell) {
+        shell_process();
+        open_pipes();
+    }
+    else
+        write_terminal();
 
-    free(buffer);
+    //Successful finish
     if (debug)
         debug_print(2);
     exit(0);
