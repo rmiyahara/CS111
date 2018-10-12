@@ -27,6 +27,7 @@ int pipe0[2]; //Holds file descriptors of the pipe that goes from the terminal t
 int pipe1[2]; //Holds file descriptors of the pipe that goes from the shell to the terminal
 pid_t child; //Holds the id for the child
 char* buffer;//Buffer for large reads as mentioned in P1A.html
+char carriage_return[2] = {'\r', '\n'}; //P1A.html specifies all newlines be saved as <cr><lf>
 
 void debug_print(int message) {
     switch (message) {
@@ -209,6 +210,98 @@ void child_duppipes() { //Sets up pipes for child process
     return;
 }
 
+void through_pipe0() {
+    ssize_t n = read(STDIN_FILENO, buffer, 256);
+    if (n < 0) {
+        fprintf(stderr, "Unable to read from pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    int i; //Itterator for loop
+    int status; //Used to kill the loop if EOF is reached
+    for (i = 0; i < n; i++) {
+        char curr_char = buffer[i];
+        switch(curr_char) {
+            case '\r':
+            case '\n':
+                status = write(STDOUT_FILENO, &carriage_return, 2); //P1.html specifies to write both to terminal
+                if (status < 0) {
+                    fprintf(stderr, "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                status = write(pipe0[1], &carriage_return[1], 1); //P1.html specifies to write only one to shell
+                if (status < 0) {
+                    fprintf(stderr, "Unable to write through pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                if (debug)
+                    debug_print(7);
+                break;
+            case 0x03:
+                status = kill(child, SIGINT);
+                if (status < 0) {
+                    fprintf(stderr, "Unable to kill child process.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                if (debug)
+                    debug_print(8);
+                break;
+            case 0x04:
+                status = close(pipe0[1]);
+                pipeerror_handler(status);
+                if (debug)
+                    debug_print(9);
+                break;
+            default:
+                status = write(STDOUT_FILENO, &curr_char, 1)
+                if (status < 0) {
+                    "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                status = write(pipe0[1], &curr_char, 1);
+                if (status < 0) {
+                    "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                if (debug)
+                    debug_print(10);
+
+        }
+    }
+}
+
+void through_pipe1() {
+    ssize_t n = read(STDIN_FILENO, buffer, 256);
+    if (n < 0) {
+        fprintf(stderr, "Unable to read from pipe1 (shell to terminal).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    int i; //Itterator for loop
+    int status; //Used to kill the loop if EOF is reached
+    for (i = 0; i < n; i++) {
+        char curr_char = buffer[i];
+        switch(curr_char) {
+            case '\r':
+            case '\n':
+                status = write(STDOUT_FILENO, &carriage_return, 2); //P1.html specifies to write both to terminal
+                if (status < 0) {
+                    fprintf(stderr, "Unable to write through pipe1.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                if (debug)
+                    debug_print(7);
+                break;
+            default:
+                status = write(STDOUT_FILENO, &curr_char, 1)
+                if (status < 0) {
+                    "Unable to write through pipe1.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                if (debug)
+                    debug_print(10);
+
+        }
+    }
+}
+
 void shell_process() { //Run if shell flag is raised
     buffer = (char*)malloc(256 * sizeof(char));
     
@@ -250,12 +343,10 @@ void shell_process() { //Run if shell flag is raised
                     pollerror_handler();
                     return;
                 }
-                if (polls[0].revents & POLLIN) {
-                    //TODO
-                }
-                if (polls[1].revents & POLLIN) {
-                    //TODO
-                }
+                if (polls[0].revents & POLLIN) 
+                    through_pipe0()
+                if (polls[1].revents & POLLIN)
+                    through_pipe1();
             }
             poll_hold = poll(poll_helper, 2, 0);
         }
@@ -301,7 +392,6 @@ void write_terminal() { //Run if shell flag isnt raised
             case '\n':
                 if (debug)
                     debug_print(7);
-                char carriage_return[2] = {'\r', '\n'}; //P1A.html specifies all newlines be saved as <cr><lf>
                 if (write(STDOUT_FILENO, &carriage_return, 2) < 0) {
                     fprintf(stderr, "Unable to write to output.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
                     exit(1);
