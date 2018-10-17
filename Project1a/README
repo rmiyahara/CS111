@@ -1,6 +1,7 @@
 NAME: Ryan Miyahara
 EMAIL: rmiyahara144@gmail.com
 ID: 804585999
+SLIPDAYS: 2
 
 ------------------
 | Included Files |
@@ -8,7 +9,21 @@ ID: 804585999
 Within this submission are the following files:
 
 lab1a.c
-format: ./lab1a [--shell --degbug]
+This code, when compiled, changes the terminal into a character-at-a-time, full duplex terminal. This
+means, when each key is pressed, the program can process the character without waiting for a newline.
+The executable must be used in the following format: ./lab1a [--shell=program --degbug]
+
+The shell flag forks the program and runs its output into a designated shell. This will be "/bin/bash"
+for most machines.
+
+The debug flag gives the user numberous lines of output which helped to debug the program. The function
+debug_print must be given an integer code to select a helpful output. Each code has a comment label
+explaining when it should be used.
+
+Below are the exit codes for the program. When it exits, it always provides a helpful error message
+along with strerrr and its errno.
+0 ... normal execution, shutdown on ^D
+1 ... unrecognized argument or system call failure
 
 Makefile
 This builds the executable, cleans the working directory of files made while building the executable, 

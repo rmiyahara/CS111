@@ -2,6 +2,7 @@
 NAME: Ryan Miyahara
 EMAIL: rmiyahara144@gmail.com
 ID: 804585999
+SLIPDAYS: 2
 */
 
 #include <stdio.h>
@@ -110,7 +111,7 @@ void pipeerror_handler() { //Called if there is an error closing pipes
     exit(1);
 }
 
-void childpipe_handler(int pipe_status) { //Called to check if an error has occured when duping or closing a pipe
+void pipe_handler(int pipe_status) { //Called to check if an error has occured when duping or closing a pipe
     if (pipe_status < 0) { //Pipe_status will be set to -1 on error
         fprintf(stderr, "Unable to close pipes in child process.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
     }
@@ -128,7 +129,7 @@ void pollerror_handler() { //Called if the parent process has an error polling
     fprintf(stderr, "SHELL EXIT SIGNAL=%d STATUS=%d\r\n", signal, status);
     if (debug)
         debug_print(19);
-    childpipe_handler(close(pipe1[0])); //Close output pipe
+    pipe_handler(close(pipe1[0])); //Close output pipe
 }
 
 //Terminal functions
@@ -191,20 +192,20 @@ void open_pipes() {
 }
 
 void parent_duppipes() { //Sets up pipes for parent process
-    childpipe_handler(close(pipe0[0]));
-    childpipe_handler(close(pipe1[1]));
+    pipe_handler(close(pipe0[0]));
+    pipe_handler(close(pipe1[1]));
 }
 
 void child_duppipes() { //Sets up pipes for child process
     //Help with close function: https://linux.die.net/man/2/close
     //Help with dup2 function: http://man7.org/linux/man-pages/man2/dup.2.html
-    childpipe_handler(close(pipe0[1]));
-    childpipe_handler(close(pipe1[0]));
-    childpipe_handler(dup2(pipe0[0], STDIN_FILENO));
-    childpipe_handler(dup2(pipe1[1], STDOUT_FILENO));
-    childpipe_handler(dup2(pipe1[1], STDERR_FILENO));
-    childpipe_handler(close(pipe0[0]));
-    childpipe_handler(close(pipe1[1]));
+    pipe_handler(close(pipe0[1]));
+    pipe_handler(close(pipe1[0]));
+    pipe_handler(dup2(pipe0[0], STDIN_FILENO));
+    pipe_handler(dup2(pipe1[1], STDOUT_FILENO));
+    pipe_handler(dup2(pipe1[1], STDERR_FILENO));
+    pipe_handler(close(pipe0[0]));
+    pipe_handler(close(pipe1[1]));
     if (debug)
         debug_print(14);
     return;
@@ -262,9 +263,6 @@ void through_pipe0() {
                     "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
                     exit(1);
                 }
-                if (debug)
-                    debug_print(10);
-
         }
     }
 }
@@ -321,8 +319,7 @@ void shell_process() { //Run if shell flag is raised
         poll_helper[0].fd = pipe1[0];
         poll_helper[0].events = POLLIN | POLLERR | POLLHUP;
         poll_helper[1].events = POLLIN | POLLERR | POLLHUP;
-        if (debug)
-            debug_print(18);
+        if (debug) debug_print(18);
 
         int poll_hold = poll(poll_helper, 2, 0);
         while(true) { //Endless loop, functions inside will end process
@@ -359,14 +356,12 @@ void shell_process() { //Run if shell flag is raised
             shell,
             NULL
         }; //Arguments must be terminated by a NULL byte: https://linux.die.net/man/3/execvp
-        if (debug)
-            debug_print(17);
+        if (debug) debug_print(17);
         if ((execvp(shell, shell_arguments)) < 0) {
             fprintf(stderr, "Unable to execute shell.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
             exit(1);
         }
-        if (debug)
-            debug_print(15);
+        if (debug) debug_print(15);
     }
 
     //Free buffer
@@ -464,7 +459,6 @@ int main(int argc, char** argv) {
         write_terminal();
 
     //Successful finish
-    if (debug)
-        debug_print(2);
+    if (debug) debug_print(2);
     exit(0);
 }
