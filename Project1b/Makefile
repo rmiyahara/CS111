@@ -13,7 +13,7 @@ server:
 	gcc -Wall -Wextra -g lab1b-server.c -o lab1b-server
 
 clean:
-	rm -f lab1b *.o *tar.gz
+	rm -f lab1b *.o *tar.gz *.txt
 
 dist:
 	make;
