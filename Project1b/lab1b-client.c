@@ -21,12 +21,14 @@ ID: 804585999
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <poll.h>
 
 
 //Global Variable section
 bool log_flag = false; //Set to true if --log flag is used
 int log; //Used to write to filename when log flag is used
 bool encrypt_flag = false; //Set to true if --encrypt flag is used
+char* encrypt; //Set to encrypt file
 int port_num; //Set to port number passed into execution
 bool debug = false; //Used to help debug the program
 struct termios holdme; //Will hold the terminal's mode
@@ -37,6 +39,8 @@ int pipe0[2]; //Holds file descriptors of the pipe that goes from the terminal t
 int pipe1[2]; //Holds file descriptors of the pipe that goes from the shell to the terminal
 int socket_fd; //Holds file descriptor of socket
 pid_t child; //Holds the id for the child
+char carriage_return[2] = {'\r', '\n'}; //P1A.html specifies all newlines be saved as <cr><lf>
+struct pollfd poll_helper[2]; //Holds events and revents while polling
 
 void debug_print(int message) {
     switch (message) {
@@ -67,6 +71,9 @@ void debug_print(int message) {
         case 8:
             fprintf(stderr, "Server has been got.\r\n");
             break;
+        case 9:
+            fprintf(stderr, "Socket has been connected.\r\n");
+            break;
         default:
             fprintf(stderr, "You shouldn't get here!\r\n");
     }
@@ -94,10 +101,27 @@ void set_server() {
     return;
 }
 
+void connect_socket() {
+    memset((char*) &addy_server, 0, sizeof(addy_server)); //Help with memset here: https://www.geeksforgeeks.org/memset-c-example/
+    
+    addy_server.sin_port = htons(port_num); //Set portnumber specified by command line arg
+    addy_server.sin_family = AF_INET; //Set in socket tutorial
+
+    memcpy((char*) &addy_server.sin_addr, (char*)server->h_addr, server->h_length); //Move address of server into addy_server
+    if (connect(socket_fd, (struct socketaddr*) &addy_server, sizeof(addy_server)) < 0) {
+        fprintf(stderr, "Unable to connect socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+
+    if (debug) debug_print(9);
+    return;
+}
+
 void socket_setup() {
     set_socket();
     set_server();
-    
+
+    connect_socket();
     return;
 }
 
@@ -170,14 +194,14 @@ int main(int argc, char** argv) {
                 break;
             case 'e':
                 encrypt_flag = true;
-                char* encrypt = grab_key(optarg);
+                encrypt = grab_key(optarg);
                 break;
             case 'd':
                 debug = true;
                 if (debug) debug_print(0);
                 break;
             default:
-                fprintf(stderr, "Incorrect usage, please use this program in the following format: ./lab1b-client --port=portnumeber [--log=filename --encrypt=keyfile]");
+                fprintf(stderr, "Incorrect usage, please use this program in the following format: ./lab1b-client --port=portnumber [--log=filename --encrypt=keyfile]");
                 exit(1);
         }
     }
