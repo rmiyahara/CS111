@@ -11,4 +11,4 @@ clean:
 
 dist:
 	make;
-	tar -czf lab1a-804585999.tar.gz ./lab1a.c ./Makefile ./README
+	tar -czf lab1b-804585999.tar.gz ./lab1b-client.c ./lab1b-server.c ./Makefile ./my.key ./README
