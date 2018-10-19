@@ -21,6 +21,7 @@ ID: 804585999
 #include <netinet/in.h>
 #include <netdb.h>
 #include <poll.h>
+#include <signal.h>
 
 //Global Variables
 int port_num = -1; //Set to port number passed into execution
@@ -33,8 +34,11 @@ pid_t child; //Holds the id for the child
 int pipe0[2]; //Holds file descriptors of the pipe that goes from the terminal to the shell
 int pipe1[2]; //Holds file descriptors of the pipe that goes from the shell to the terminal
 int socket_fd[2]; //Holds file descriptor of socket[0] and when it updated after binding[1]
+char carriage_return[2] = {'\r', '\n'}; //P1A.html specifies all newlines be saved as <cr><lf>
+char* buffer; //Holds reads
 
-void debug_print(int message) {
+
+void debug_print(int message) { //Used for debugging, message is used to pick which message
     switch (message) {
         case 0:
             fprintf(stderr, "Debug flag has been raised!\r\n");
@@ -51,14 +55,134 @@ void debug_print(int message) {
         case 4:
             fprintf(stderr, "Socket setup is complete.\r\n");
             break;
+        case 5:
+            fprintf(stderr, "Inside parent process.\r\n");
+            break;
+        case 6:
+            fprintf(stderr, "Inside child process.\r\n");
+            break;
+        case 7:
+            fprintf(stderr, "Child process has changed the duped and closed pipes.\r\n");
+            break;
+        case 8:
+            fprintf(stderr, "Shell has been executed by the child process.\r\n");
+            break;
+        case 9:
+            fprintf(stderr, "Parent process has changed the pipes.\r\n");
+            break;
+        case 10:
+            fprintf(stderr, "Pipes have been opened!\r\n");
+            break;
+        case 11:
+            fprintf(stderr, "Polling has stopped.\r\n");
+            break;
+        case 12:
+            fprintf(stderr, "^D received.\r\n");
+            break;
+        case 13:
+            fprintf(stderr, "^C received.\r\n");
+            break;
+        case 14:
+            fprintf(stderr, "Char received.\r\n");
+            break;
         default:
             fprintf(stderr, "You shouldn't get here!\r\n");
     }
     return;
 }
 
+//Handler Functions
+void pipeerror_handler() { //Called if there is an error closing pipes
+    fprintf(stderr, "Issue closing pipes.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+    exit(1);
+}
+
+void pipe_handler(int pipe_status) { //Called to check if an error has occured when duping or closing a pipe
+    if (pipe_status < 0) { //Pipe_status will be set to -1 on error
+        fprintf(stderr, "Unable to close pipes.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    return;
+}
+
+void pollerror_handler() { //Called if the parent process has an error polling
+    int s;
+    int thread = waitpid(child, &s, 0);
+    if (thread < 0) {
+        fprintf(stderr, "Unable to wait for child to update.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    int signal = (0x007F & s);
+    int status = ((0xFF00 & s) >> 8);
+    fprintf(stderr, "SHELL EXIT SIGNAL=%d STATUS=%d\r\n", signal, status);
+    if (debug) debug_print(11);
+    close_socket();
+    return;
+}
+
+void sigint_handler(int oibruv) {
+    if (oibruv == SIGINT) {
+        if (kill(child, SIGINT)) {
+            fprintf(stderr, "Unable to kill child process.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+            exit(1);
+        }
+    }
+    return;
+}
+
+void sigpipe_handler(int oibruv) {
+    if (oibruv == SIGPIPE)
+        exit(1);
+    return;
+}
+
+//Pipe Functions
+void open_pipes() { //Opens pipes to and from the shell
+    if ((pipe(pipe0)) < 0) {
+        fprintf(stderr, "Unable to open pipe from terminal to shell.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    if ((pipe(pipe1)) < 0) {
+        fprintf(stderr, "Unable to open pipe from shell to terminal.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    if (debug) debug_print(10);
+}
+
+void close_socket() { //Closes socket file descriptors
+    int i;
+    for (i = 0; i < 2; i++) {
+        if (close(socket_fd[i])) {
+            fprintf(stderr, "Unable to close socket file descriptors.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+            exit(1);
+        }
+    }
+    return;
+}
+
+void parent_duppipes() { //Sets up pipes for parent process
+    pipe_handler(close(pipe0[0]));
+    pipe_handler(close(pipe1[1]));
+    if (debug) debug_print(9);
+    return;
+}
+
+void child_duppipes() { //Sets up pipes for child process
+    //Help with close function: https://linux.die.net/man/2/close
+    //Help with dup2 function: http://man7.org/linux/man-pages/man2/dup.2.html
+    pipe_handler(close(pipe0[1]));
+    pipe_handler(close(pipe1[0]));
+    pipe_handler(dup2(pipe0[0], STDIN_FILENO));
+    pipe_handler(dup2(pipe1[1], STDOUT_FILENO));
+    pipe_handler(dup2(pipe1[1], STDERR_FILENO));
+    pipe_handler(close(pipe0[0]));
+    pipe_handler(close(pipe1[1]));
+    if (debug) debug_print(7);
+    return;
+}
+
 //Socket Functions
-voide set_socket() {
+voide set_socket() { //Creates socket
     socket_fd[0] = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd[0] < 0) {
         fprintf(stderr, "Unable to open socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
@@ -67,7 +191,7 @@ voide set_socket() {
     if (debug) debug_print(2);
 }
 
-void bind_socket() {
+void bind_socket() { //Binds socket
     memset((char*) &addy_server, 0, sizeof(addy_server)); //Help with memset here: https://www.geeksforgeeks.org/memset-c-example/
     
     addy_server.sin_port = htons(port_num); //Set portnumber specified by command line arg
@@ -83,7 +207,7 @@ void bind_socket() {
     return;
 }
 
-void socket_setup() {
+void socket_setup() { //Sets up and binds socket
     set_socket();
     bind_socket();
     
@@ -97,7 +221,123 @@ void socket_setup() {
     if (debug) debug_print(4);
 }
 
+//Big Functions
+void through_pipe0() {
+    char curr_char; //Holds current char we are processing
+    ssize_t n = read(STDIN_FILENO, &buffer, 256); //How many bytes are read
+    if (n < 0){
+        fprintf(stderr, "Error reading fron terminal. Error: %d, Message: %s\n", errno, strerror(errno));
+        exit(1);
+        }
+    int i; //Itterator for loop
+    for(i = 0; i < n; i++) {
+        curr_char = buffer[i];
+        switch(curr_char){
+            case 0x04:
+                pipe_handler(close(pipe0[1]));
+                if (debug) debug_print(12);
+                break;
+            case 0x03:
+                if ((kill(child, SIGINT)) < 0){
+                    fprintf(stderr, "Unable to kill child process.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                if (debug) debug_print(13);
+                break;
+            case: '\r':
+            case: '\n':
+                if ((write(pipe0[1], &carriage_return[1], sizeof(char))) < 0) {
+                    fprintf(stderr, "Unable to write through pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                break;
+            default:
+                if ((write(pipe0[1], &curr_char, 1)) < 0) {
+                    fprintf(stderr, "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                if (debug) debug_print(14);
+        }
+    }
+    return;
+}
+
+void through_socket() {
+    ssize_t n = read(poll_helper[1].fd, buffer, 256); //How many bytes are read
+    if(n < 0){
+        fprintf(stderr, "Error reading from input. Error: %d, Message: %s\n", errno, strerror(errno));
+        exit(1);
+    }
+    if ((write(socket_fd[1], buffer, n)) < 0) {
+        fprintf(stderr, "Unable to write through socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    return;
+}
+
+void shell_process() { //Not named right, but much of the code is borrowed from P1A
+    buffer = (char*)malloc(256 * sizeof(char));
+    child = fork();
+    if (child < 0) {
+        fprintf(stderr, "Unable to fork.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+
+    if (child) { //Parent process
+        if (debug) debug_print(5);
+
+        parent_duppipes();
+        //Set up poll_helper and a main loop as reccomended by P1A.html
+        poll_helper[0].fd = 0;
+        poll_helper[1].fd = pipe1[0];
+        poll_helper[0].events = POLLIN | POLLERR | POLLHUP;
+        poll_helper[1].events = POLLIN | POLLERR | POLLHUP;
+
+        int poll_hold = poll(poll_helper, 2, 0);
+        while(true) { //Endless loop, functions inside will end process
+            if (poll_hold < 0) {
+                fprintf(stderr, "Unable to poll.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                exit(1);
+            }
+            else if (poll_hold > 0) {
+                if (poll_helper[0].revents & (POLLERR | POLLHUP)) {
+                    pollerror_handler();
+                    return;
+                }
+                if (poll_helper[1].revents & (POLLERR | POLLHUP)) {
+                    pollerror_handler();
+                    return;
+                }
+                if (poll_helper[0].revents & POLLIN)
+                    through_pipe0();
+                if (poll_helper[1].revents & POLLIN)
+                    through_socket();
+            }
+            poll_hold = poll(poll_helper, 2, 0);
+        }
+    }
+    else { //Child process
+        if (debug) debug_print(6);
+
+        child_duppipes();
+        char* shell_arguments[2] = {
+            "/bin/bash",
+            NULL
+        }; //Arguments must be terminated by a NULL byte: https://linux.die.net/man/3/execvp
+        if ((execvp("/bin/bash", shell_arguments)) < 0) {
+            fprintf(stderr, "Unable to execute shell.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+            exit(1);
+        }
+        if (debug) debug_print(8);
+    }
+    free(buffer);
+    return;
+}
+
 int main(int argc, char** argv) {
+    signal(SIGINT, sigint_handler);
+    signal(SIGPIPE, sigpipe_handler);
+
     //Variable setup section
     struct option flags [] = { //Sets up the 2 optional flags
         {"port", 1, NULL, 'p'},
@@ -131,6 +371,9 @@ int main(int argc, char** argv) {
     if (debug & encrypt_flag) debug_print(1);
 
     socket_setup();
+    open_pipes();
+
+    shell_process();
 
     exit(0); //Successful finish
 }

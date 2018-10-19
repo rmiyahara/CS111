@@ -15,15 +15,16 @@ SLIPDAYS: 2
 #include <unistd.h>
 #include <termios.h>
 #include <pthread.h>
+#include <sys/wait.h>
 #include <poll.h>
 
 //Global Variables
 bool debug = false; //Set to true if the --debug flag is used
 bool shell_flag = false; //Set to true if the --shell flag is used
-char* shell; //Set to specified shell, default is /bin/bash
+char* shell = "/bin/bash"; //Set to specified shell, default is /bin/bash
 struct termios holdme; //Will hold the terminal's mode
 struct termios alteredterminal; //Holds terminal's mode after changes have been made
-struct pollfd poll_helper[2]; //Holds 
+struct pollfd poll_helper[2]; //Holds events and revents for polling
 int pipe0[2]; //Holds file descriptors of the pipe that goes from the terminal to the shell
 int pipe1[2]; //Holds file descriptors of the pipe that goes from the shell to the terminal
 pid_t child; //Holds the id for the child
@@ -92,6 +93,9 @@ void debug_print(int message) {
         case 19: //Successful shell ending
             fprintf(stderr, "Successful shell ending.\r\n");
             break;
+        case 20: //Pipes successfully changed by parent process
+            fprintf(stderr, "Parent process has changed the duped and closed pipes.\r\n");
+            break;
         default:
             fprintf(stderr, "You shouldn't get here!\r\n");
     }
@@ -104,16 +108,10 @@ void terminalerror_handler() { //Called if STDIN does not refer to a terminal
     exit(1);
 }
 
-void pipeerror_handler() { //Called if there is an error closing pipes
-    fprintf(stderr, "Issue closing pipes.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-    if (debug)
-        debug_print(6);
-    exit(1);
-}
-
 void pipe_handler(int pipe_status) { //Called to check if an error has occured when duping or closing a pipe
     if (pipe_status < 0) { //Pipe_status will be set to -1 on error
         fprintf(stderr, "Unable to close pipes in child process.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
     }
 }
 
@@ -127,15 +125,13 @@ void pollerror_handler() { //Called if the parent process has an error polling
     int signal = (0x007F & s);
     int status = ((0xFF00 & s) >> 8);
     fprintf(stderr, "SHELL EXIT SIGNAL=%d STATUS=%d\r\n", signal, status);
-    if (debug)
-        debug_print(19);
+    if (debug) debug_print(19);
     pipe_handler(close(pipe1[0])); //Close output pipe
 }
 
 //Terminal functions
 void hold_terminal() { //Holds the terminal's states
-    if (debug)
-        debug_print(4);
+    if (debug) debug_print(4);
 
     if (tcgetattr(STDIN_FILENO, &holdme)) {
         //Info for this function found here: http://pubs.opengroup.org/onlinepubs/007904875/functions/tcgetattr.html
@@ -146,8 +142,7 @@ void hold_terminal() { //Holds the terminal's states
 }
 
 void replace_terminal() { //Puts back the terminal's states
-    if (debug)
-        debug_print(5);
+    if (debug) debug_print(5);
 
     if (tcsetattr(STDIN_FILENO, TCSANOW, &holdme)) {
         //Info for this function found here: http://pubs.opengroup.org/onlinepubs/009695399/functions/tcsetattr.html
@@ -158,13 +153,12 @@ void replace_terminal() { //Puts back the terminal's states
 }
 
 void input_setup() { //Called by main function to set terminal attributes
-    if (debug)
-        debug_print(3);
+    if (debug) debug_print(3);
 
     hold_terminal();
     atexit(replace_terminal);
-    tcgetattr(STDIN_FILENO, &alteredterminal);
 
+    tcgetattr(STDIN_FILENO, &alteredterminal);
     //Following modifications taken from P1A.html
     alteredterminal.c_iflag = ISTRIP;	/* only lower 7 bits*/
 	alteredterminal.c_oflag = 0;		/* no processing	*/
@@ -178,6 +172,7 @@ void input_setup() { //Called by main function to set terminal attributes
 
 }
 
+//Pipe functions
 void open_pipes() {
     if ((pipe(pipe0)) < 0) {
         fprintf(stderr, "Unable to open pipe from terminal to shell.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
@@ -187,16 +182,27 @@ void open_pipes() {
         fprintf(stderr, "Unable to open pipe from shell to terminal.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
         exit(1);
     }
-    if (debug)
-        debug_print(11);
+    if (debug) debug_print(11);
 }
 
-void parent_duppipes() { //Sets up pipes for parent process
+void parent_pipes() {
     pipe_handler(close(pipe0[0]));
     pipe_handler(close(pipe1[1]));
+    if (debug) debug_print(20);
 }
 
-void child_duppipes() { //Sets up pipes for child process
+void parenttochild_pipes() {
+    if(pipe(pipe0) < 0) {
+        fprintf(stderr, "Unable to open pipe from parent to child.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    if(pipe(pipe1) < 0){
+        fprintf(stderr, "Unable to open pipe from parent to child.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+}
+
+void child_pipes() {
     //Help with close function: https://linux.die.net/man/2/close
     //Help with dup2 function: http://man7.org/linux/man-pages/man2/dup.2.html
     pipe_handler(close(pipe0[1]));
@@ -206,156 +212,141 @@ void child_duppipes() { //Sets up pipes for child process
     pipe_handler(dup2(pipe1[1], STDERR_FILENO));
     pipe_handler(close(pipe0[0]));
     pipe_handler(close(pipe1[1]));
-    if (debug)
-        debug_print(14);
+    if (debug) debug_print(14);
     return;
 }
 
+//Shell functions
 void through_pipe0() {
-    ssize_t n = read(STDIN_FILENO, buffer, 256);
-    if (n < 0) {
-        fprintf(stderr, "Unable to read from pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+    //Variable initiation
+    char curr_char; //Holds current char we are processing
+    ssize_t n = read(STDIN_FILENO, buffer, 256); //How many bytes are read
+    if (n < 0){
+        fprintf(stderr, "Error reading fron terminal. Error: %d, Message: %s\n", errno, strerror(errno));
         exit(1);
     }
     int i; //Itterator for loop
-    int status; //Used to kill the loop if EOF is reached
-    for (i = 0; i < n; i++) {
-        char curr_char = buffer[i];
-        switch(curr_char) {
-            case '\r':
-            case '\n':
-                status = write(STDOUT_FILENO, &carriage_return, 2); //P1.html specifies to write both to terminal
-                if (status < 0) {
-                    fprintf(stderr, "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-                    exit(1);
-                }
-                status = write(pipe0[1], &carriage_return[1], 1); //P1.html specifies to write only one to shell
-                if (status < 0) {
-                    fprintf(stderr, "Unable to write through pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-                    exit(1);
-                }
-                if (debug)
-                    debug_print(7);
+    for(i = 0; i < n; i++) {
+        curr_char = buffer[i];
+        switch(curr_char){
+            case 0x04:
+                pipe_handler(close(pipe0[1]));
+                if (debug) debug_print(9);
                 break;
             case 0x03:
-                status = kill(child, SIGINT);
-                if (status < 0) {
+                if ((kill(child, SIGINT)) < 0){
                     fprintf(stderr, "Unable to kill child process.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
                     exit(1);
                 }
-                if (debug)
-                    debug_print(8);
+                if (debug) debug_print(8);
                 break;
-            case 0x04:
-                status = close(pipe0[1]);
-                pipeerror_handler(status);
-                if (debug)
-                    debug_print(9);
+            case '\r':
+            case '\n'://map <cr> & <lf> to <cr><lf>
+                if ((write(STDOUT_FILENO, &carriage_return, 2)) < 0) {
+                    fprintf(stderr, "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                if ((write(pipe0[1], &carriage_return[1], 1)) < 0) {
+                    fprintf(stderr, "Unable to write through pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
                 break;
             default:
-                status = write(STDOUT_FILENO, &curr_char, 1)
-                if (status < 0) {
-                    "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                if ((write(STDOUT_FILENO, &curr_char, 1)) < 0) {
+                    fprintf(stderr, "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
                     exit(1);
                 }
-                status = write(pipe0[1], &curr_char, 1);
-                if (status < 0) {
-                    "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                if ((write(pipe0[1], &curr_char, 1)) < 0) {
+                    fprintf(stderr, "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
                     exit(1);
                 }
+                if (debug) debug_print(10);
         }
     }
 }
 
 void through_pipe1() {
-    ssize_t n = read(STDIN_FILENO, buffer, 256);
-    if (n < 0) {
-        fprintf(stderr, "Unable to read from pipe1 (shell to terminal).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+    char curr_char; //Holds current char we are processing
+    ssize_t n = read(poll_helper[1].fd, buffer, 256); //How many bytes are read
+    if(n < 0){
+        fprintf(stderr, "Error reading from input. Error: %d, Message: %s\n", errno, strerror(errno));
         exit(1);
     }
     int i; //Itterator for loop
-    int status; //Used to kill the loop if EOF is reached
-    for (i = 0; i < n; i++) {
-        char curr_char = buffer[i];
-        switch(curr_char) {
+    for(i = 0; i < n; i++){
+        curr_char = buffer[i];
+        switch(curr_char){
             case '\r':
             case '\n':
-                status = write(STDOUT_FILENO, &carriage_return, 2); //P1.html specifies to write both to terminal
-                if (status < 0) {
-                    fprintf(stderr, "Unable to write through pipe1.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-                    exit(1);
-                if (debug)
-                    debug_print(7);
-                break;
-            default:
-                status = write(STDOUT_FILENO, &curr_char, 1)
-                if (status < 0) {
-                    "Unable to write through pipe1.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                if((write(STDOUT_FILENO, &carriage_return, 2)) < 0) {
+                    fprintf(stderr, "Error writing from input. Error: %d, Message: %s\n", errno, strerror(errno));
                     exit(1);
                 }
-                if (debug)
-                    debug_print(10);
-
+                break;
+            default:
+                if((write(STDOUT_FILENO, &curr_char, 1)) < 0){
+                    fprintf(stderr, "Unable to write through pipe1.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                if (debug) debug_print(10);
         }
     }
 }
 
-void shell_process() { //Run if shell flag is raised
+void shell_terminal() {
     buffer = (char*)malloc(256 * sizeof(char));
-    
-    child = fork();
 
+    parenttochild_pipes();
+    child = fork();
     if (child < 0) {
         fprintf(stderr, "Unable to fork.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
         exit(1);
     }
 
     if (child) { //Parent process
-        if (debug)
-            debug_print(12);
-        parent_duppipes();
+        if (debug) debug_print(12);
+        parent_pipes();
+
         //Set up poll_helper and a main loop as reccomended by P1A.html
         poll_helper[0].fd = 0;
-        poll_helper[0].fd = pipe1[0];
-        poll_helper[0].events = POLLIN | POLLERR | POLLHUP;
-        poll_helper[1].events = POLLIN | POLLERR | POLLHUP;
-        if (debug) debug_print(18);
-
+        poll_helper[1].fd = pipe1[0];
+        poll_helper[0].events = POLLIN | POLLHUP | POLLERR;
+        poll_helper[1].events = POLLIN | POLLHUP | POLLERR;
+        
         int poll_hold = poll(poll_helper, 2, 0);
-        while(true) { //Endless loop, functions inside will end process
+        while(1) {
             if (poll_hold < 0) {
                 fprintf(stderr, "Unable to poll.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
                 exit(1);
             }
             else if (poll_hold > 0) {
-                if (polls[0].revents & (POLLERR | POLLHUP)) {
-                    if ((kill(child, SIGINT)) < 0) {
+                if(poll_helper[0].revents & (POLLHUP | POLLERR)) {
+                    if((kill(child, SIGINT)) < 0){
                         fprintf(stderr, "Unable to kill the child process.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
                         exit(1);
                     }
                     pollerror_handler();
                     return;
                 }
-                if (polls[1].revents & (POLLERR | POLLHUP)) {
+                if(poll_helper[1].revents & (POLLHUP | POLLERR)) {
                     pollerror_handler();
                     return;
                 }
-                if (polls[0].revents & POLLIN) 
-                    through_pipe0()
-                if (polls[1].revents & POLLIN)
+                if(poll_helper[0].revents & POLLIN)
+                    through_pipe0();
+                if(poll_helper[1].revents & POLLIN)
                     through_pipe1();
             }
             poll_hold = poll(poll_helper, 2, 0);
         }
     }
-    else { //Child process has a PID of 0
-        if (debug)
-            debug_print(13);
-        child_duppipes();
+    else { //Child procss has a PID of 0
+        if (debug) debug_print(13);
+        child_pipes();
         char* shell_arguments[2] = {
             shell,
             NULL
-        }; //Arguments must be terminated by a NULL byte: https://linux.die.net/man/3/execvp
+        };//Arguments must be terminated by a NULL byte: https://linux.die.net/man/3/execvp
         if (debug) debug_print(17);
         if ((execvp(shell, shell_arguments)) < 0) {
             fprintf(stderr, "Unable to execute shell.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
@@ -363,14 +354,7 @@ void shell_process() { //Run if shell flag is raised
         }
         if (debug) debug_print(15);
     }
-
-    //Free buffer
-    if (debug)
-        debug_print(6);
-    free(buffer);
-    return;
 }
-
 
 void write_terminal() { //Run if shell flag isnt raised
     char hold; //Not using buffer because keyboards will return 1
@@ -385,24 +369,20 @@ void write_terminal() { //Run if shell flag isnt raised
         switch (hold){
             case '\r':
             case '\n':
-                if (debug)
-                    debug_print(7);
+                if (debug) debug_print(7);
                 if (write(STDOUT_FILENO, &carriage_return, 2) < 0) {
                     fprintf(stderr, "Unable to write to output.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
                     exit(1);
                 }
                 break;
             case 0x03: //^C
-                if (debug)
-                    debug_print(8);
+                if (debug) debug_print(8);
                 break;
             case 0x04: //^D
-                if (debug)
-                    debug_print(9);
+                if (debug) debug_print(9);
                 return;
             default:
-                if (debug)
-                    debug_print(10);
+                if (debug) debug_print(10);
                 if (write(STDOUT_FILENO, &hold, 1) < 0) {
                     fprintf(stderr, "Unable to write to output.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
                     exit(1);
@@ -426,7 +406,6 @@ int main(int argc, char** argv) {
         switch (curr_param) {
             case 's':
                 shell_flag = true;
-                shell = optarg;
                 if (strcmp(optarg, "--debug") == 0) {
                     fprintf(stderr, "Incorrect usage, please use this program in the following format: ./lab1a [--shell=program --degbug]\nTry setting program to \"\\bin\\bash\"\n");
                     exit(1);
@@ -453,7 +432,7 @@ int main(int argc, char** argv) {
     //Check shell flag and execute accordingly
     if (shell_flag) {
         open_pipes();
-        shell_process();
+        shell_terminal();
     }
     else
         write_terminal();
