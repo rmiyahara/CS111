@@ -16,31 +16,30 @@ ID: 804585999
 #include <sys/stat.h>
 #include <pthread.h>
 #include <fcntl.h>
-#include <signal>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <poll.h>
 
-
 //Global Variable section
 bool log_flag = false; //Set to true if --log flag is used
-int log; //Used to write to filename when log flag is used
+int log_fd; //Used to write to filename when log flag is used
+char* log_filename; //Holds filename of log
 bool encrypt_flag = false; //Set to true if --encrypt flag is used
 char* encrypt; //Set to encrypt file
+int encrypt_size; //How many bytes are in the encrypt file
 int port_num; //Set to port number passed into execution
 bool debug = false; //Used to help debug the program
 struct termios holdme; //Will hold the terminal's mode
 struct termios alteredterminal; //Holds terminal's mode after changes have been made
 struct sockaddr_in addy_server; //Holds internet address of server referenced here: http://www.cs.rpi.edu/~moorthy/Courses/os98/Pgms/socket.html
 struct hostent* server; //Holds multiple server attributes referenced here: http://www.cs.rpi.edu/~moorthy/Courses/os98/Pgms/socket.html
-int pipe0[2]; //Holds file descriptors of the pipe that goes from the terminal to the shell
-int pipe1[2]; //Holds file descriptors of the pipe that goes from the shell to the terminal
 int socket_fd; //Holds file descriptor of socket
-pid_t child; //Holds the id for the child
 char carriage_return[2] = {'\r', '\n'}; //P1A.html specifies all newlines be saved as <cr><lf>
 struct pollfd poll_helper[2]; //Holds events and revents while polling
+char* buffer; //Holds reads
 
 void debug_print(int message) {
     switch (message) {
@@ -74,10 +73,21 @@ void debug_print(int message) {
         case 9:
             fprintf(stderr, "Socket has been connected.\r\n");
             break;
+        case 10:
+            fprintf(stderr, "Char received.\r\n");
+            break;
+        case 11:
+            fprintf(stderr, "Port number: %d\r\n", port_num);
+            break;
         default:
             fprintf(stderr, "You shouldn't get here!\r\n");
     }
     return;
+}
+
+//Handler functions
+void server_handler() {
+    fprintf(stderr, "The server has been disconnected! Try turning it off then back on again.\r\n");
 }
 
 //Socket functions
@@ -108,7 +118,7 @@ void connect_socket() {
     addy_server.sin_family = AF_INET; //Set in socket tutorial
 
     memcpy((char*) &addy_server.sin_addr, (char*)server->h_addr, server->h_length); //Move address of server into addy_server
-    if (connect(socket_fd, (struct socketaddr*) &addy_server, sizeof(addy_server)) < 0) {
+    if (connect(socket_fd, (struct sockaddr*) &addy_server, sizeof(addy_server)) < 0) {
         fprintf(stderr, "Unable to connect socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
         exit(1);
     }
@@ -166,7 +176,124 @@ void input_setup() { //Called by main function to set terminal attributes
     return;
 }
 
+//Encrypt functions
+char* encrypt_key(char* keyname) {
+    int encrypt_fd = open(keyname, O_RDONLY);
+    if (encrypt_fd < 0) {
+        fprintf(stderr, "Unable to open encryption key.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+
+    struct stat encrypt_buf; //Defined here: https://linux.die.net/man/2/fstat
+    if (fstat(encrypt_fd, &encrypt_buf) < 0) {
+        fprintf(stderr, "Unable obtain information about encryption key.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    encrypt_size = encrypt_buf.st_size;
+
+    char* the_key = (char*)malloc((encrypt_buf.st_size * sizeof(char)) + 1);
+    if (read(encrypt_fd, the_key, encrypt_buf.st_size) < 0) {
+        fprintf(stderr, "Unable to read encryption key.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    return the_key;
+}
+
+//Big functions
+void through_pipe0() {
+    char curr_char; //Holds current char we are processing
+    ssize_t n = read(STDIN_FILENO, &buffer, 256); //How many bytes are read
+    if (n < 0){
+        fprintf(stderr, "Error reading fron terminal. Error: %d, Message: %s\n", errno, strerror(errno));
+        exit(1);
+        }
+    int i; //Itterator for loop
+    for(i = 0; i < n; i++) {
+        curr_char = buffer[i];
+        switch(curr_char){
+            case 0x04:
+            case '\r':
+            case '\n':
+                if ((write(STDOUT_FILENO, &carriage_return, 2 * sizeof(char))) < 0) {
+                    fprintf(stderr, "Unable to write through pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                break;
+            default:
+                if ((write(STDOUT_FILENO, &curr_char, sizeof(char))) < 0) {
+                    fprintf(stderr, "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                if (debug) debug_print(10);
+        }
+    }
+    return;
+}
+
+void through_socket() {
+    char curr_char; //Holds current char we are processing
+    ssize_t n = read(poll_helper[1].fd, &buffer, 256);
+    if (n < 0) {
+        fprintf(stderr, "Unable to read from socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    for (int i = 0; i < n; i++) {
+        curr_char = buffer[i];
+        switch (curr_char) {
+            case '\r':
+            case '\n':
+                if (write(STDOUT_FILENO, &carriage_return, 2 * sizeof(char))) {
+                    fprintf(stderr, "Unable to write through socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                break;
+            default:
+                if (write(STDOUT_FILENO, &curr_char, sizeof(char))) {
+                    fprintf(stderr, "Unable to write through socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+        }
+    }
+    return;
+}
+
+void shell_process() {
+    buffer = (char*)malloc(256 * sizeof(char));
+
+    //Set up poll_helper and a main loop as reccomended by P1A.html
+        poll_helper[0].fd = 0;
+        poll_helper[1].fd = socket_fd;
+        poll_helper[0].events = POLLIN | POLLERR | POLLHUP;
+        poll_helper[1].events = POLLIN | POLLERR | POLLHUP;
+
+    int poll_hold = poll(poll_helper, 2, 0);
+    while(true) { //Endless loop, functions inside will end process
+        if (poll_hold < 0) {
+            fprintf(stderr, "Unable to poll.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+            exit(1);
+        }
+        else if (poll_hold > 0) {
+            if (poll_helper[0].revents & (POLLERR | POLLHUP)) {
+                server_handler();
+                return;
+            }
+            if (poll_helper[1].revents & (POLLERR | POLLHUP)) {
+                server_handler();
+                return;
+            }
+            if (poll_helper[0].revents & POLLIN)
+                through_pipe0();
+            if (poll_helper[1].revents & POLLIN)
+                through_socket();
+        }
+        poll_hold = poll(poll_helper, 2, 0);
+    }
+    free(buffer);
+    return;
+}
+
 int main(int argc, char** argv) {
+    signal(SIGINT, sigint_handler);
 
     //Variable setup section
     struct option flags [] = { //Sets up the 2 optional flags
@@ -185,16 +312,16 @@ int main(int argc, char** argv) {
                 break;
             case 'l':
                 log_flag = true;
-                log = creat(optarg, S_IRWXU);
-                if (log < 0) {
+                log_fd = creat(optarg, S_IRWXU);
+                if (log_fd < 0) {
                     fprintf(stderr, "Unable to open file descriptor for log.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
                     exit(1);
                 }
-                filename = optarg;
+                log_filename = optarg;
                 break;
             case 'e':
                 encrypt_flag = true;
-                encrypt = grab_key(optarg);
+                encrypt = encrypt_key(optarg);
                 break;
             case 'd':
                 debug = true;
@@ -205,11 +332,14 @@ int main(int argc, char** argv) {
                 exit(1);
         }
     }
+    if (debug) debug_print(11);
     if (debug & log_flag) debug_print(2);
     if (debug & encrypt_flag) debug_print(3);
 
     input_setup();
     socket_setup();
+
+    shell_process();
 
     exit(0);
 }

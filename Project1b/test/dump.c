@@ -38,9 +38,8 @@ int pipe1[2]; //Holds file descriptors of the pipe that goes from the shell to t
 int socket_fd[2]; //Holds file descriptor of socket[0] and when it updated after binding[1]
 socklen_t socket_size; //Holds size of client address
 char carriage_return[2] = {'\r', '\n'}; //P1A.html specifies all newlines be saved as <cr><lf>
-char* buffer; //Holds reads
+char buffer[256]; //Holds reads
 struct pollfd poll_helper[2]; //Holds events and revents for polling
-
 
 void debug_print(int message) { //Used for debugging, message is used to pick which message
     switch (message) {
@@ -95,41 +94,20 @@ void debug_print(int message) { //Used for debugging, message is used to pick wh
     return;
 }
 
-//Handler Functions
-void pipeerror_handler() { //Called if there is an error closing pipes
-    fprintf(stderr, "Issue closing pipes.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-    exit(1);
-}
-
-void pipe_handler(int pipe_status) { //Called to check if an error has occured when duping or closing a pipe
-    if (pipe_status < 0) { //Pipe_status will be set to -1 on error
-        fprintf(stderr, "Unable to close pipes.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+void print_exit_signal(){
+    //shutdown(socket_fd[1], SHUT_RDWR);
+    int status;
+    int val = waitpid(child, &status, 0);
+    if(val < 0){
+        fprintf(stderr, "Error in waitpid: Error: %d, Message: %s\n", errno, strerror(errno));
         exit(1);
     }
-    return;
+    fprintf(stderr, "SHELL EXIT SIGNAL=%d, STATUS=%d\r\n", WTERMSIG(status), WEXITSTATUS(status));
+    close(socket_fd[0]);
+    close(socket_fd[1]);
 }
 
-void pollerror_handler() { //Called if the parent process has an error polling
-    int s;
-    int thread = waitpid(child, &s, 0);
-    if (thread < 0) {
-        fprintf(stderr, "Unable to wait for child to update.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-        exit(1);
-    }
-    int signal = (0x007F & s);
-    int status = ((0xFF00 & s) >> 8);
-    fprintf(stderr, "SHELL EXIT SIGNAL=%d STATUS=%d\r\n", signal, status);
-    if (debug) debug_print(11);
-    int i;
-    for (i = 0; i < 2; i++) {
-        if (close(socket_fd[i])) {
-            fprintf(stderr, "Unable to close socket file descriptors.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-            exit(1);
-        }
-    }
-    return;
-}
-
+//Handler functions
 void sigint_handler(int oibruv) {
     if (oibruv == SIGINT) {
         if (kill(child, SIGINT)) {
@@ -146,7 +124,15 @@ void sigpipe_handler(int oibruv) {
     return;
 }
 
-//Pipe Functions
+void pipe_handler(int pipe_status) { //Called to check if an error has occured when duping or closing a pipe
+    if (pipe_status < 0) { //Pipe_status will be set to -1 on error
+        fprintf(stderr, "Unable to close pipes.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+        exit(1);
+    }
+    return;
+}
+
+//Pipe functions
 void open_pipes() { //Opens pipes to and from the shell
     if ((pipe(pipe0)) < 0) {
         fprintf(stderr, "Unable to open pipe from terminal to shell.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
@@ -181,39 +167,36 @@ void child_duppipes() { //Sets up pipes for child process
 }
 
 //Socket Functions
-void set_socket() { //Creates socket
+void set_socket() {
     socket_fd[0] = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd[0] < 0) {
         fprintf(stderr, "Unable to open socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
         exit(1);
     }
-    if (debug) debug_print(2);
 }
 
-void bind_socket() { //Binds socket
+void bind_socket() {
     memset((char*) &addy_server, 0, sizeof(addy_server)); //Help with memset here: https://www.geeksforgeeks.org/memset-c-example/
     
     addy_server.sin_port = htons(port_num); //Set portnumber specified by command line arg
     addy_server.sin_family = AF_INET; //Set in socket tutorial
     addy_server.sin_addr.s_addr = INADDR_ANY;
-
-    if (bind(socket_fd[0], (struct sockaddr*) &addy_server, sizeof(addy_server)) < 0) {
+    if(bind(socket_fd[0], (struct sockaddr *)&addy_server, sizeof(addy_server)) < 0){
         fprintf(stderr, "Unable to connect socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
         exit(1);
     }
-
     if (debug) debug_print(3);
     return;
 }
 
-void socket_setup() { //Sets up and binds socket
+void socket_setup(){
     set_socket();
     bind_socket();
-    listen(socket_fd[0], 5); //Passively listens to socket referenced: http://man7.org/linux/man-pages/man2/listen.2.html
+    listen(socket_fd[0], 5);
     socket_size = sizeof(addy_client);
 
-    socket_fd[1] = accept(socket_fd[0], (struct sockaddr*) &addy_client, &socket_size);
-    if (socket_fd[1] < 0) {
+    socket_fd[1] = accept(socket_fd[0], (struct sockaddr *) &addy_client, &socket_size);
+    if(socket_fd[1] < 0){
         fprintf(stderr, "Unable to accept new socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
         exit(1);
     }
@@ -222,7 +205,7 @@ void socket_setup() { //Sets up and binds socket
 
 //Encrypt Functions
 char* encrypt_key(char* keyname) {
-    int encrypt_fd = open(keyname, O_RDONLY);
+    int encrypt_fd = open(keyname, O_RDONLY); //Open encrypt file descriptor
     if (encrypt_fd < 0) {
         fprintf(stderr, "Unable to open encryption key.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
         exit(1);
@@ -243,102 +226,73 @@ char* encrypt_key(char* keyname) {
     return the_key;
 }
 
-//Big Functions
-void through_pipe0() {
-    char curr_char; //Holds current char we are processing
-    ssize_t n = read(STDIN_FILENO, &buffer, 256); //How many bytes are read
-    if (n < 0){
-        fprintf(stderr, "Error reading fron terminal. Error: %d, Message: %s\n", errno, strerror(errno));
-        exit(1);
-        }
-    int i; //Itterator for loop
-    for(i = 0; i < n; i++) {
-        curr_char = buffer[i];
-        switch(curr_char){
-            case 0x04:
-                pipe_handler(close(pipe0[1]));
-                if (debug) debug_print(12);
-                break;
-            case 0x03:
-                if ((kill(child, SIGINT)) < 0){
-                    fprintf(stderr, "Unable to kill child process.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-                    exit(1);
-                }
-                if (debug) debug_print(13);
-                break;
-            case '\r':
-            case '\n':
-                if ((write(pipe0[1], &carriage_return[1], sizeof(char))) < 0) {
-                    fprintf(stderr, "Unable to write through pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-                    exit(1);
-                }
-                break;
-            default:
-                if ((write(pipe0[1], &curr_char, 1)) < 0) {
-                    fprintf(stderr, "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-                    exit(1);
-                }
-                if (debug) debug_print(14);
-        }
-    }
-    return;
-}
-
-void through_socket() {
-    ssize_t n = read(poll_helper[1].fd, buffer, 256); //How many bytes are read
-    if(n < 0){
-        fprintf(stderr, "Error reading from input. Error: %d, Message: %s\n", errno, strerror(errno));
-        exit(1);
-    }
-    if ((write(socket_fd[1], buffer, n)) < 0) {
-        fprintf(stderr, "Unable to write through socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-        exit(1);
-    }
-    return;
-}
-
-void shell_process() { //Not named right, but much of the code is borrowed from P1A
-    buffer = (char*)malloc(256 * sizeof(char));
+//Big functions
+void shell_process() {
     child = fork();
     if (child < 0) {
         fprintf(stderr, "Unable to fork.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
         exit(1);
     }
 
-    if (child) { //Parent process
-        if (debug) debug_print(5);
-
+    if (child) {
         parent_duppipes();
         //Set up poll_helper and a main loop as reccomended by P1A.html
         poll_helper[0].fd = 0;
         poll_helper[1].fd = pipe1[0];
         poll_helper[0].events = POLLIN | POLLERR | POLLHUP;
         poll_helper[1].events = POLLIN | POLLERR | POLLHUP;
-
-        int poll_hold = poll(poll_helper, 2, 0);
-        while(true) { //Endless loop, functions inside will end process
-            if (poll_hold < 0) {
-                fprintf(stderr, "Unable to poll.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-                exit(1);
-            }
-            else if (poll_hold > 0) {
-                if (poll_helper[0].revents & (POLLERR | POLLHUP)) {
-                    pollerror_handler();
-                    return;
-                }
-                if (poll_helper[1].revents & (POLLERR | POLLHUP)) {
-                    pollerror_handler();
-                    return;
-                }
-                if (poll_helper[0].revents & POLLIN)
-                    through_pipe0();
-                if (poll_helper[1].revents & POLLIN)
-                    through_socket();
-            }
-            poll_hold = poll(poll_helper, 2, 0);
+        
+        int val;
+        int num;
+        int i;
+        int exitNum = atexit(print_exit_signal);
+        if(exitNum < 0){
+            fprintf(stderr, "Error exiting. Error: %d, Message: %s", errno, strerror(errno));
+            exit(1);
         }
-    }
-    else { //Child process
+        for(;;){
+            int result = poll(poll_helper, 2, 0);
+            if (result > 0){
+                if(poll_helper[0].revents & POLLIN){
+                    num = read(socket_fd[1], buffer, 256); //change 256 later *REMEMBER
+                    for(i = 0; i < num; i++){
+                        char curr = buffer[i];
+                        switch(curr){
+                            case '\r':
+                            case '\n':
+                                val = write(pipe0[1], &carriage_return[1], sizeof(char));
+                                break;
+                            case 0x04:
+                                pipe_handler(close(pipe0[1]));
+                                if (debug) debug_print(12);
+                                break;
+                            case 0x03:
+                                val = kill(child, SIGINT);
+                                if(val < 0){
+                                    fprintf(stderr, "Failed to kill process: Error:%d, Message: %s\n", errno, strerror(errno));
+                                    exit(1);
+                                }
+                                break;
+                            default:
+                                val = write(pipe0[1], &curr, sizeof(char));
+                                break;
+                        }
+                    }
+                }
+                if(poll_helper[0].revents & (POLLHUP | POLLERR)){
+                    exit(0);
+                }
+                if(poll_helper[1].revents & POLLIN){
+                    num = read(poll_helper[1].fd, &buffer, 256);
+                    val = write(socket_fd[1], &buffer, num);
+                }
+                if(poll_helper[1].revents & (POLLHUP | POLLERR)){
+                    exit(0);
+                }
+            }
+        }
+    }//parent process (terminal)
+    else {
         if (debug) debug_print(6);
 
         child_duppipes();
@@ -352,11 +306,10 @@ void shell_process() { //Not named right, but much of the code is borrowed from 
         }
         if (debug) debug_print(8);
     }
-    free(buffer);
     return;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv){
     signal(SIGINT, sigint_handler);
     signal(SIGPIPE, sigpipe_handler);
 
@@ -367,7 +320,7 @@ int main(int argc, char** argv) {
         {"debug", 0, NULL, 'd'}
     }; //Option data structure referenced here: https://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
     int curr_param; //Contains the parameter that is currently being analyzed
-
+    
     while ((curr_param = getopt_long(argc, argv, "p:l:e:d", flags, NULL)) != -1) {
         switch(curr_param) {
             case 'p':
@@ -392,11 +345,11 @@ int main(int argc, char** argv) {
         exit(1);
     }
     if (debug & encrypt_flag) debug_print(1);
-
+    
     socket_setup();
     open_pipes();
 
     shell_process();
 
-    exit(0); //Successful finish
+    exit(0);
 }
