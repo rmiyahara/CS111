@@ -1,11 +1,60 @@
 NAME: Ryan Miyahara
 EMAIL: rmiyahara144@gmail.com
 ID: 804585999
+SLIPDAYS: 3
 
 ------------------
 | Included Files |
 ------------------
 Within this submission are the following files:
+
+lab1b-client.c
+This program, when compiled, forms an executable which connects the the lab1b-server program. This program streams the keyboard input
+through a socket to the server program. Below are the flags it can take in:
+--port=portnumber
+This is a mandatory flag which must be set. The port must be set to a number above 2000 as anything below tends to be used by standard
+services. If a port number is not specified, the program will exit.
+--log=filename
+This is an optional flag which logs all the of the traffic from the client to the server and from the server to the client. If a filename
+is used that is not an existing file, the program will create that file and write to it.
+--encrypt=encryptionkey
+This optional flag encrypts all data going through the socket. It bases its cryptography on the my.key file also included in this submission.
+--debug
+This optional flag prints messages to the stderr which are extremely helpful when debugging this program. It calls the debug_print function
+at the top of this file.
+
+
+lab1b-server.c
+This program, when compiled, forms an executable which connects to the lab1b-client program. This program takes the stream of data from
+the client and passes it into a shell through pipes. These were the exact same pipes used in Project1A. When run, nothing will appear
+on stdout as it is waiting for a connection. Below are the flags it can take in:
+--port=portnumber
+This is a mandatory flag which must be set. The port must be set to a number above 2000 as anything below tends to be used by standard
+services. If a port number is not specified, the program will exit.
+--encrypt=encryptionkey
+This optional flag encrypts all data going through the socket. It bases its cryptography on the my.key file also included in this submission.
+--debug
+This optional flag prints messages to the stderr which are extremely helpful when debugging this program. It calls the debug_print function
+at the top of this file.
+
+
+Makefile
+This shell script has a few commands which help to create executables, clean the directory, and make the submission:
+make
+This command will make both the lab1b-server and the lab1b-client executables.
+make client
+This command will only make the lab1b-client executable.
+make server
+This command will only make the lab1b-server executable.
+make clean
+This command will remove any executables, object files, log text files, and submissions in the working directory.
+make dist
+This command will make a tarball with the files in the submission.
+
+my.key
+This file contains the encryption key which I used for testing. This file was made using the following command on the SEASNet server's command
+line:
+dd if=/dev/urandom of=./my.key bs=1 count=16
 
 --------------
 | References |
@@ -16,3 +65,6 @@ http://man7.org/linux/man-pages/man2/listen.2.html
 help from
 http://www.cs.rpi.edu/~moorthy/Courses/os98/Pgms/socket.html
 https://www.geeksforgeeks.org/memset-c-example/
+
+Much of my Project1B was taken from my Project1A
+    https://github.com/rmiyahara/CS111/tree/master/Project1a
