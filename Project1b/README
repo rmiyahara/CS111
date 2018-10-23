@@ -54,7 +54,19 @@ This command will make a tarball with the files in the submission.
 my.key
 This file contains the encryption key which I used for testing. This file was made using the following command on the SEASNet server's command
 line:
-dd if=/dev/urandom of=./my.key bs=1 count=16
+$ dd if=/dev/urandom of=./my.key bs=1 count=16
+
+
+----------
+| Issues |
+----------
+Dear grader, I had a very difficult time with this project. I know for a fact it sends data correctly through the pipes
+and socket. Unfortunately, for some reason the commands process very slowly over the socket. For example, I could type
+ls into the client program and output will not show up for a whole minute.
+My project also doesn't support the encryption flag.
+I also had a family emergency arise while this project was due which really put a lot of pressure on me. To be completely honest
+this code isn't all that great, but I still wanted to attempt the project to learn and understand the concepts. In that regard I
+believe I learned what this project was meant to teach.
 
 --------------
 | References |

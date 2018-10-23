@@ -39,7 +39,7 @@ struct hostent* server; //Holds multiple server attributes referenced here: http
 int socket_fd; //Holds file descriptor of socket
 char carriage_return[2] = {'\r', '\n'}; //P1A.html specifies all newlines be saved as <cr><lf>
 struct pollfd poll_helper[2]; //Holds events and revents while polling
-char* buffer; //Holds reads
+char buffer[256]; //Holds reads
 
 void debug_print(int message) {
     switch (message) {
@@ -201,65 +201,77 @@ char* encrypt_key(char* keyname) {
 
 //Big functions
 void through_pipe0() {
-    char curr_char; //Holds current char we are processing
-    ssize_t n = read(STDIN_FILENO, &buffer, 256); //How many bytes are read
+    int n = read(STDIN_FILENO, &buffer, 256); //How many bytes are read
     if (n < 0){
         fprintf(stderr, "Error reading fron terminal. Error: %d, Message: %s\n", errno, strerror(errno));
         exit(1);
         }
     int i; //Itterator for loop
     for(i = 0; i < n; i++) {
-        curr_char = buffer[i];
-        switch(curr_char){
-            case 0x04:
-            case '\r':
-            case '\n':
-                if ((write(STDOUT_FILENO, &carriage_return, 2 * sizeof(char))) < 0) {
-                    fprintf(stderr, "Unable to write through pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-                    exit(1);
-                }
-                break;
-            default:
-                if ((write(STDOUT_FILENO, &curr_char, sizeof(char))) < 0) {
-                    fprintf(stderr, "Unable to write through pipe0.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
-                    exit(1);
-                }
-                if (debug) debug_print(10);
+        if (buffer[i] == '\r' || buffer[i] == '\n') {
+            if ((write(STDOUT_FILENO, &carriage_return, 2 * sizeof(char))) < 0) {
+                fprintf(stderr, "Unable to write through pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                exit(1);
+            }
+            if (write(socket_fd, &carriage_return[1], sizeof(char)) < 0) {
+                fprintf(stderr, "Unable to write through pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                exit(1);
+            }
+        }
+        else {
+            if ((write(STDOUT_FILENO, &buffer[i], sizeof(char))) < 0) {
+                fprintf(stderr, "Unable to write through pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                exit(1);
+            }
+            if (write(socket_fd, &buffer[i], sizeof(char)) < 0) {
+                fprintf(stderr, "Unable to write through pipe0 (terminal to shell).\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                exit(1);
+            }
+        }
+    }
+    if (log_flag) {
+        if (dprintf(log_fd, "%d byte read\r\n", n) < 0) {
+            fprintf(stderr, "Unable to write to log.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+            exit(1);
         }
     }
     return;
 }
 
 void through_socket() {
-    char curr_char; //Holds current char we are processing
-    ssize_t n = read(poll_helper[1].fd, &buffer, 256);
+    int n = read(poll_helper[1].fd, &buffer, 256);
     if (n < 0) {
         fprintf(stderr, "Unable to read from socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
         exit(1);
     }
     for (int i = 0; i < n; i++) {
-        curr_char = buffer[i];
-        switch (curr_char) {
-            case '\r':
-            case '\n':
+            if (buffer[i] == '\r' || buffer[i] == '\n') {
                 if (write(STDOUT_FILENO, &carriage_return, 2 * sizeof(char))) {
                     fprintf(stderr, "Unable to write through socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
                     exit(1);
                 }
-                break;
-            default:
-                if (write(STDOUT_FILENO, &curr_char, sizeof(char))) {
+            }
+            else {
+                if (write(STDOUT_FILENO, &buffer[i], sizeof(char))) {
                     fprintf(stderr, "Unable to write through socket.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
                     exit(1);
                 }
+            }
+    }
+    if (log_flag) {
+        if (dprintf(log_fd, "%d byte read\r\n", n) < 0) {
+            fprintf(stderr, "Unable to write to log.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+            exit(1);
         }
+        if (write(log_fd, &buffer, n) < 0) {
+            fprintf(stderr, "Unable to write to log.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+            exit(1);
+    }
     }
     return;
 }
 
 void shell_process() {
-    buffer = (char*)malloc(256 * sizeof(char));
-
     //Set up poll_helper and a main loop as reccomended by P1A.html
         poll_helper[0].fd = 0;
         poll_helper[1].fd = socket_fd;
@@ -288,13 +300,10 @@ void shell_process() {
         }
         poll_hold = poll(poll_helper, 2, 0);
     }
-    free(buffer);
     return;
 }
 
 int main(int argc, char** argv) {
-    signal(SIGINT, sigint_handler);
-
     //Variable setup section
     struct option flags [] = { //Sets up the 2 optional flags
         {"port", 1, NULL, 'p'},
