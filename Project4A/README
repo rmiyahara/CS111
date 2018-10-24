@@ -1,0 +1,45 @@
+NAME: Ryan Miyahara
+EMAIL: rmiyahara144@gmail.com
+ID: 804585999
+
+BeagleBone Serial: BBGW17090147
+WiFi MAC Address: Hardwired Ethernet
+
+It should be noted that I did all wireless based parts of this
+project using hardwired ethernet. 
+
+------------------
+| Included Files |
+------------------
+Within this submission are the following files:
+
+my_beaglebone.jpg
+This is a selfie taken with my assembled BeagleBone. The
+front of the board is shown.
+
+connected.png
+This is a screenshot from a USB terminal session. It shows
+that I gave my board a name (80458599.lasr.cs.ucla.edu) and
+configured network access through hardwired ehternet.
+
+copy.png
+This is a screenshot of Filezilla using sftp to move my
+trivial.c program onto the BeagleBone.
+
+build_run.png
+This is a screenshot of me compiling my trivial program through
+a SSH wireless connection. I forgot to include stdlib.h, so I
+added it with Vim and recompiled. The output "Hello World!" is 
+as expected.
+
+git.png
+This is a screenshot taken after I used the following command:
+# sudo apt-get install git
+to install git. The screenshot shows me cloning my CS111 repo
+and using ls to display the contents. I also did this in a WiFi
+SSH session.
+
+Makefile
+This shell script makes the submission, cleans the directory,
+and makes the trivial program with make, make clean, and make
+trivial respectively.
