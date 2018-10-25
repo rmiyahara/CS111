@@ -3,10 +3,7 @@ EMAIL: rmiyahara144@gmail.com
 ID: 804585999
 
 BeagleBone Serial: BBGW17090147
-WiFi MAC Address: Hardwired Ethernet
-
-It should be noted that I did all wireless based parts of this
-project using hardwired ethernet. 
+WiFi MAC Address: 2CF7F1066A13
 
 ------------------
 | Included Files |
@@ -20,7 +17,7 @@ front of the board is shown.
 connected.png
 This is a screenshot from a USB terminal session. It shows
 that I gave my board a name (80458599.lasr.cs.ucla.edu) and
-configured network access through hardwired ehternet.
+configured network access through WiFi.
 
 copy.png
 This is a screenshot of Filezilla using sftp to move my
@@ -28,9 +25,8 @@ trivial.c program onto the BeagleBone.
 
 build_run.png
 This is a screenshot of me compiling my trivial program through
-a SSH wireless connection. I forgot to include stdlib.h, so I
-added it with Vim and recompiled. The output "Hello World!" is 
-as expected.
+a SSH wireless connection. The output "Hello World!" is as 
+expected.
 
 git.png
 This is a screenshot taken after I used the following command:
