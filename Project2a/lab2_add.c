@@ -18,6 +18,8 @@ bool debug = false;
 long counter = 0;
 int thread_count = 1;
 int iteration_count = 1;
+bool opt_yield = false;
+char sync = 'f';
 
 void debug_print(int mes) {
     switch (mes) {
@@ -42,10 +44,21 @@ void debug_print(int mes) {
         case 6:
             printf("Waited on the threads.\n");
             break;
+        case 7:
+            printf("Yield flag raised\n");
+            break;
+        case 8:
+            printf("Sync \'%c\' set.\n", sync);
+            break;
         default:
             printf("You should never get here!\n");
     }
     return;
+}
+
+
+char* label() {
+
 }
 
 //Crazy arithmetic functions
@@ -88,6 +101,8 @@ int main(int argc, char** argv) {
     struct option flags [] = { //Sets up the 2 optional flags
         {"threads", optional_argument, NULL, 't'},
         {"iterations", optional_argument, NULL, 'i'},
+        {"yield", no_argument, NULL, 'y'},
+        {"sync", required_argument, NULL, 's'},
         {"debug", no_argument, NULL, 'd'}
     }; //Option data structure referenced here: https://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
     int curr_param; //Contains the parameter that is currently being analyzed
@@ -103,6 +118,13 @@ int main(int argc, char** argv) {
                 if (optarg)
                     iteration_count = atoi(optarg);
                 break;
+            case 'y':
+                opt_yield = true;
+                break;
+            case 's':
+                sync = optarg;
+                sync_flag = true;
+                break;
             case 'd':
                 debug = true;
                 break;
@@ -116,6 +138,8 @@ int main(int argc, char** argv) {
         for (int i = 0; i < 3; i++)
             debug_print(i);
     }
+    if (debug && opt_yield) debug_print(7);
+    if (debyg && (sync != 'f')) debug_print(8);
 
     //Mark start
     struct timespec start;
@@ -135,6 +159,7 @@ int main(int argc, char** argv) {
     }
     if (debug) debug_print(4);
 
+    char* tag = label();
     printf("Counter: %d\n", counter);
 
     exit(0); //Sucessful exit
