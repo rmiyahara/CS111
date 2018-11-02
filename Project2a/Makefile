@@ -8,6 +8,9 @@ build:
 
 tests:
 
+add:
+	gcc -Wall -Wextra -g -pthread lab2_add.c -o lab2_add
+
 graphs:
 
 dist:

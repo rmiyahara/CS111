@@ -20,6 +20,7 @@ int thread_count = 1;
 int iteration_count = 1;
 bool opt_yield = false;
 char sync = 'f';
+char* tag = "";
 
 void debug_print(int mes) {
     switch (mes) {
@@ -50,6 +51,12 @@ void debug_print(int mes) {
         case 8:
             printf("Sync \'%c\' set.\n", sync);
             break;
+        case 9:
+            printf("Label set to: %s\n", tag);
+            break;
+        case 10:
+            printf("Counter at: %ld\n", counter);
+            break;
         default:
             printf("You should never get here!\n");
     }
@@ -58,7 +65,30 @@ void debug_print(int mes) {
 
 
 char* label() {
-
+    if (opt_yield) {
+        switch (sync) {
+            case 'm':
+                return "add-yield-m";
+            case 's':
+                return "add-yield-s";
+            case 'c':
+                return "add-yield-c";
+            default:
+                return "add-yield-none";
+        }
+    }
+    else {
+        switch (sync) {
+            case 'm':
+                return "add-m";
+            case 's':
+                return "add-s";
+            case 'c':
+                return "add-c";
+            default:
+                return "add-none";
+                }
+    }
 }
 
 //Crazy arithmetic functions
@@ -93,6 +123,7 @@ void dothething() {
         }
     }
     if (debug) debug_print(6);
+    if (debug) debug_print(10);
 }
 
 int main(int argc, char** argv) {
@@ -122,8 +153,7 @@ int main(int argc, char** argv) {
                 opt_yield = true;
                 break;
             case 's':
-                sync = optarg;
-                sync_flag = true;
+                sync = optarg[0];
                 break;
             case 'd':
                 debug = true;
@@ -135,11 +165,11 @@ int main(int argc, char** argv) {
     }
     if (debug) {
         int i;
-        for (int i = 0; i < 3; i++)
+        for (i = 0; i < 3; i++)
             debug_print(i);
     }
     if (debug && opt_yield) debug_print(7);
-    if (debyg && (sync != 'f')) debug_print(8);
+    if (debug && (sync != 'f')) debug_print(8);
 
     //Mark start
     struct timespec start;
@@ -159,8 +189,13 @@ int main(int argc, char** argv) {
     }
     if (debug) debug_print(4);
 
-    char* tag = label();
-    printf("Counter: %d\n", counter);
+    //Get data for CSV
+    //Get name of test
+    tag = label();
+    if (debug) debug_print(9);
+    //Get total number of operations performed
+    long long num_ops = thread_count * iteration_count * 2;
+    //Get total run time (in nanoseconds)
 
     exit(0); //Sucessful exit
 }
