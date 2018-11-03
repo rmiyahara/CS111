@@ -21,6 +21,7 @@ int iteration_count = 1;
 bool opt_yield = false;
 char sync = 'f';
 char* tag = "";
+pthread_mutex_t lockerino;
 
 void debug_print(int mes) {
     switch (mes) {
@@ -87,13 +88,15 @@ char* label() {
                 return "add-c";
             default:
                 return "add-none";
-                }
+        }
     }
 }
 
 //Crazy arithmetic functions
 void add(long long *pointer, long long value) {
     long long sum = *pointer + value;
+    if (opt_yield)
+        sched_yield();
     *pointer = sum;
     }
 
@@ -126,6 +129,10 @@ void dothething() {
     if (debug) debug_print(10);
 }
 
+void rip_locks() {
+    pthread_mutex_destroy(&lockerino);
+}
+
 int main(int argc, char** argv) {
 
     //Variable setup section
@@ -154,12 +161,19 @@ int main(int argc, char** argv) {
                 break;
             case 's':
                 sync = optarg[0];
+                if (sync != 'm' && sync != 's' && sync != 'c') {
+                    fprintf(stderr, "Sync must be set to m, s, or c\n");
+                    exit(1);
+                }
+                if (sync == 'm') {
+                    atexit(rip_locks);
+                }
                 break;
             case 'd':
                 debug = true;
                 break;
             default:
-                fprintf(stderr, "Incorrect usage, please use this program in the following format: ./lab1a [--shell=program --degbug]\nTry setting program to \"\\bin\\bash\"\n");
+                fprintf(stderr, "Incorrect usage, please use this program in the following format: ./lab2_add [--threads=#threads --iterations=#iterations --yield --sync=[m, s, c] --debug]\n");
                 exit(1);
         }
     }
@@ -194,8 +208,13 @@ int main(int argc, char** argv) {
     tag = label();
     if (debug) debug_print(9);
     //Get total number of operations performed
-    long long num_ops = thread_count * iteration_count * 2;
+    long num_ops = thread_count * iteration_count * 2;
     //Get total run time (in nanoseconds)
+    long runtime = start.tv_nsec - end.tv_nsec;
+    long average_runtime = runtime / num_ops;
+
+    //Print CSV
+    printf("%s,%d,%d,%ld,%ld,%ld,%ld", tag, thread_count, iteration_count, num_ops, runtime, average_runtime, counter);
 
     exit(0); //Sucessful exit
 }

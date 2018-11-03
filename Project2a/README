@@ -6,8 +6,54 @@ ID: 804585999
 | Included Files |
 ------------------
 Within this submission are the following files:
+lab2_add.c
+This file compiles to make an executable which creates a certain number of threads
+which adds and subtracts from a shared counter a given number of times. The executable is
+specified in the following way:
+$ ./lab2_add [--threads=#threads --iterations=#iterations --yield --sync=[m, s, c] --debug]
+--threads=#threads
+The threads flag allows the user to set the number of threads that the program creates. If
+this flag isn't used, only 1 thread is specified.
+--iterations=#iterations
+The iterations flag allows the user to set the number of times the counter is added and
+subtracted from. If this flag isn't used, 1 iteration is specified.
+--yield
+This flag takes no arguments and calls the POSIX sched_yield() function with every addition.
+This slows down the program by a lot and is explained in the questions section.
+--sync=[m, s, c]
+This flag prevents synchronization errors from happening with the use of a mutex(m),
+spin-lock(s), or a compare-and-swap(c).
 
 
 --------------
 | References |
 --------------
+
+
+-------------
+| Questions |
+-------------
+2.1.1 - causing conflicts
+It takes many iterations before errors are seen because non-deterministic errors are unlikely to
+happen. Since making a thread takes longer than modifying the shared counter, interrupts are less
+likely to happen during the critical section of code. A significantly smaller number of
+iterations seldom fails because the shared variable is accessed much less often which means there
+are less chances for an error. 
+
+2.1.2 - cost of yielding
+The --yield runs are much slower because a system call is made. This raises the overhead as
+every time a system is called, the OS much switch from user mode to kernel mode. We cannot receive
+a valid per-operation timings if the yield option is used because we would now be including the
+system call rather than solely the operation.
+
+2.1.3 - measurement errors
+The average cost per operation drops with an increase of iterations because thread creation overhead
+is fixed. This means that an increase in iterations results in the creation overhead being more
+spread out. If the cost per iteration is a function of the number of iterations, we know how many
+iterations to run by seeing when the slope becomes 1.
+
+2.1.4 - costs of serialization
+All of the options perform similarly for low numbers of threads because there are less threads to
+spin in the lock. This means each thread waits less for the lock. All three protected operations
+slow down as the number of threads rises because each thread now has to wait longer for the critical
+section to become available.
