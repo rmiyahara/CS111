@@ -22,6 +22,7 @@ bool opt_yield = false;
 char sync = 'f';
 char* tag = "";
 pthread_mutex_t lockerino;
+int spin_lockerino = 0;
 
 void debug_print(int mes) {
     switch (mes) {
@@ -93,16 +94,61 @@ char* label() {
 }
 
 //Crazy arithmetic functions
-void add(long long *pointer, long long value) {
-    long long sum = *pointer + value;
+void add(long long value) {
+    long long sum = counter + value;
     if (opt_yield)
         sched_yield();
-    *pointer = sum;
-    }
+    counter = sum;
+}
 
-void quick_maths(long long *pointer) {
-    add(pointer, 1);
-    add(pointer, -1);
+void add_m(long long value) {
+    int i;
+    for (i = 0; i < iteration_count; i++) {
+        pthread_mutex_lock(&lockerino);
+        add(value);
+        pthread_mutex_unlock(&lockerino);
+    }
+}
+
+void add_s(long long value) {
+    int i;
+    for (i = 0; i < iteration_count; i++) {
+        while(__sync_lock_test_and_set(&spin_lockerino, 1));
+        add(value);
+        __sync_lock_release(&spin_lockerino);
+    }
+}
+
+void add_c(long long value) {
+    int i;
+    long long compare;
+    long long swap;
+    for (i = 0; i < iteration_count; i++) {
+        do {
+            compare = counter;
+            swap = counter + value;
+        } while(__sync_val_compare_and_swap(&counter, compare, swap) != compare);
+    }
+}
+
+void quick_maths() {
+    switch (sync) {
+        case 'm':
+            add_m(1);
+            add_m(-1);
+            break;
+        case 's':
+            add_s(1);
+            add_s(-1);
+            break;
+        case 'c':
+            add_c(1);
+            add_c(-1);
+            break;
+        default:
+            add(1);
+            add(-1);
+    }
 }
 
 //Thread functions
@@ -111,7 +157,7 @@ void dothething() {
     pthread_t spawn[thread_count];
     int i;
     for (i = 0; i < thread_count; i++) {
-        if (pthread_create(&spawn[i], NULL, (void*) &quick_maths, &counter) < 0) {
+        if (pthread_create(&spawn[i], NULL, (void*) &quick_maths, NULL) < 0) {
             fprintf(stderr, "Unable to create thread %d.\nError message: %s\n Error number: %d\n", i, strerror(errno), errno);
             exit(1);
         }
@@ -210,11 +256,11 @@ int main(int argc, char** argv) {
     //Get total number of operations performed
     long num_ops = thread_count * iteration_count * 2;
     //Get total run time (in nanoseconds)
-    long runtime = start.tv_nsec - end.tv_nsec;
+    long runtime = end.tv_nsec - start.tv_nsec;
     long average_runtime = runtime / num_ops;
 
     //Print CSV
-    printf("%s,%d,%d,%ld,%ld,%ld,%ld", tag, thread_count, iteration_count, num_ops, runtime, average_runtime, counter);
+    printf("%s,%d,%d,%ld,%ld,%ld,%ld\n", tag, thread_count, iteration_count, num_ops, runtime, average_runtime, counter);
 
     exit(0); //Sucessful exit
 }
