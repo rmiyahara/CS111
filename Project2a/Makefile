@@ -11,6 +11,9 @@ tests:
 add:
 	gcc -Wall -Wextra -g -pthread lab2_add.c -o lab2_add
 
+list:
+	gcc -Wall -Wextra -g SortedList.c -o SortedList
+	
 graphs:
 
 dist:

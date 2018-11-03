@@ -10,7 +10,7 @@ lab2_add.c
 This file compiles to make an executable which creates a certain number of threads
 which adds and subtracts from a shared counter a given number of times. The executable is
 specified in the following way:
-$ ./lab2_add [--threads=#threads --iterations=#iterations --yield --sync=[m, s, c] --debug]
+$ ./lab2_add [--threads=#threads --iterations=#iterations --yield --sync=[msc] --debug]
 --threads=#threads
 The threads flag allows the user to set the number of threads that the program creates. If
 this flag isn't used, only 1 thread is specified.
@@ -20,9 +20,25 @@ subtracted from. If this flag isn't used, 1 iteration is specified.
 --yield
 This flag takes no arguments and calls the POSIX sched_yield() function with every addition.
 This slows down the program by a lot and is explained in the questions section.
---sync=[m, s, c]
+--sync=[msc]
 This flag prevents synchronization errors from happening with the use of a mutex(m),
 spin-lock(s), or a compare-and-swap(c).
+
+SortedList.h
+Describes the Doubly Linked List interface. Provided by the class.
+
+SortedList.c
+Implements the Doubly Linked List interface. Provides the user with the following functions:
+void SortedList_insert(SortedList_t *list, SortedListElement_t *element);
+Inserts element into list while maintaining the sorted attribute of the list.
+int SortedList_delete( SortedListElement_t *element);
+Deletes an element from the linked list.
+SortedListElement_t *SortedList_lookup(SortedList_t *list, const char *key);
+Returns a pointer to the element containing key. If it doesn't exist, NULL is returned.
+int SortedList_length(SortedList_t *list);
+Returns the length of list.
+
+lab2_list.c
 
 
 --------------

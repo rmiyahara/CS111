@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
     int curr_param; //Contains the parameter that is currently being analyzed
     
     //Set params
-    while ((curr_param = getopt_long(argc, argv, "s:d", flags, NULL)) != -1) {
+    while ((curr_param = getopt_long(argc, argv, "tis:d", flags, NULL)) != -1) {
         switch (curr_param) {
             case 't':
                 if (optarg)
@@ -219,7 +219,7 @@ int main(int argc, char** argv) {
                 debug = true;
                 break;
             default:
-                fprintf(stderr, "Incorrect usage, please use this program in the following format: ./lab2_add [--threads=#threads --iterations=#iterations --yield --sync=[m, s, c] --debug]\n");
+                fprintf(stderr, "Incorrect usage, please use this program in the following format: ./lab2_add [--threads=#threads --iterations=#iterations --yield --sync=[msc] --debug]\n");
                 exit(1);
         }
     }
