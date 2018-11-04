@@ -14,7 +14,7 @@ void SortedList_insert(SortedList_t *list, SortedListElement_t *element) {
         return;
     if (!list)
         return;
-    if (opt_yield && INSERT_YIELD)
+    if (opt_yield & INSERT_YIELD)
         sched_yield();
        
     SortedListElement_t* p = list;
@@ -33,7 +33,7 @@ void SortedList_insert(SortedList_t *list, SortedListElement_t *element) {
 }
 
 int SortedList_delete( SortedListElement_t *element) {
-    if (opt_yield && DELETE_YIELD)
+    if (opt_yield & DELETE_YIELD)
         sched_yield();
 
     if ((element ->prev->next != element) || (element->next->prev != element))
@@ -44,12 +44,12 @@ int SortedList_delete( SortedListElement_t *element) {
 }
 
 SortedListElement_t *SortedList_lookup(SortedList_t *list, const char *key) {
-    if (opt_yield && LOOKUP_YIELD)
+    if (opt_yield & LOOKUP_YIELD)
         sched_yield();
     
     SortedListElement_t* p = list->next;
-    while(curr != list) {
-        if (strcmp(key, curr->key) == 0)
+    while(p != list) {
+        if (strcmp(key, p->key) == 0)
             return p;
         else
             p = p->next;
@@ -59,7 +59,7 @@ SortedListElement_t *SortedList_lookup(SortedList_t *list, const char *key) {
 
 int SortedList_length(SortedList_t *list) {
     int len = 0;
-    if (opt_yield && LOOKUP_YIELD)
+    if (opt_yield & LOOKUP_YIELD)
         sched_yield();
     
     SortedListElement_t* p = list->next;

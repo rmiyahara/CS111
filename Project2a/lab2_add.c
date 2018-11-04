@@ -159,7 +159,7 @@ void dothething() {
     for (i = 0; i < thread_count; i++) {
         if (pthread_create(&spawn[i], NULL, (void*) &quick_maths, NULL) < 0) {
             fprintf(stderr, "Unable to create thread %d.\nError message: %s\n Error number: %d\n", i, strerror(errno), errno);
-            exit(1);
+            exit(2);
         }
     }
     if (debug) debug_print(5);
@@ -168,7 +168,7 @@ void dothething() {
     for (int i = 0; i < thread_count; i++) {
         if (pthread_join(spawn[i], NULL) < 0) {
             fprintf(stderr, "Unable to wait for thread %d.\nError message: %s\n Error number: %d\n", i, strerror(errno), errno);
-            exit(1);
+            exit(2);
         }
     }
     if (debug) debug_print(6);
@@ -256,11 +256,13 @@ int main(int argc, char** argv) {
     //Get total number of operations performed
     long num_ops = thread_count * iteration_count * 2;
     //Get total run time (in nanoseconds)
-    long runtime = end.tv_nsec - start.tv_nsec;
-    long average_runtime = runtime / num_ops;
+    long long runtime = (end.tv_sec - start.tv_sec) * 1000000000L;
+    runtime -= start.tv_nsec;
+    runtime += end.tv_nsec;
+    long long average_runtime = runtime / num_ops;
 
     //Print CSV
-    printf("%s,%d,%d,%ld,%ld,%ld,%ld\n", tag, thread_count, iteration_count, num_ops, runtime, average_runtime, counter);
+    printf("%s,%d,%d,%ld,%lld,%lld,%ld\n", tag, thread_count, iteration_count, num_ops, runtime, average_runtime, counter);
 
     exit(0); //Sucessful exit
 }
