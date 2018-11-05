@@ -27,7 +27,7 @@ dist:
 	make;
 	make tests;
 	make graphs;
-	tar -zcvf lab2a-804585999.tar.gz ./lab2_add.c ./plotadd.sh ./SortedList.h ./SortedList.c ./lab2_list.c ./plotlist.sh ./Makefile ./lab2_add.csv ./lab2_list.csv *.png ./README
+	tar -czf lab2a-804585999.tar.gz ./lab2_add.c ./plotadd.sh ./SortedList.h ./SortedList.c ./lab2_list.c ./Makefile ./lab2_add.csv ./lab2_list.csv *.png ./README
 
 clean:
 	rm -f lab2_add lab2_list lab2a-804585999.tar.gz *.o *.csv *.png
