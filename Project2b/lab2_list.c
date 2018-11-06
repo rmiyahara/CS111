@@ -18,6 +18,7 @@ ID: 804585999
 //Global variables
 int thread_count = 1;
 int iteration_count = 1;
+int list_count = 1;
 bool insert_flag = false;
 bool delete_flag = false;
 bool lookups_flag = false;
@@ -220,6 +221,7 @@ int main(int argc, char** argv) {
         {"iterations", optional_argument, NULL, 'i'},
         {"yield", required_argument, NULL, 'y'},
         {"sync", required_argument, NULL, 's'},
+        {"lists", required_argument, NULL, 'l'},
         {"debug", no_argument, NULL, 'd'}
     }; //Option data structure referenced here: https://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
     int curr_param; //Contains the parameter that is currently being analyzed
@@ -270,6 +272,10 @@ int main(int argc, char** argv) {
                     fprintf(stderr, "Please set --sync=[ms].\n");
                     exit(1);
                 }
+                break;
+            case 'l':
+                if (optarg)
+                    list_count = atoi(optarg);
                 break;
             case 'd':
                 debug = true;

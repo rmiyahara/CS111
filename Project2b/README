@@ -38,6 +38,9 @@ action on the list.
 --sync=[ms]
 This flag prevents synchronization errors from happening with the use of a mutex(m),
 spin-lock(s), or a compare-and-swap(c).
+--list=#sublists
+This flag takes in an integer and creates the specified number of sublists. Each of these can
+be specified by a hash of its key, has its own header, and synchronization object.
 --debug
 Gives the user helpful output for debugging.
 The executable uses the following exit codes:
@@ -94,13 +97,37 @@ lab2_list.csv.
 | Questions |
 -------------
 2.3.1 - CPU time in the basic list implementation
+Most of the CPU time in the 1 and 2-thread list tests are spent performing the list methods.
+This is due to to not having to constantly spin threads or wait on mutexes to be unlocked.
+Most of the CPU time, in the high-thread-spin lock tests are being spent spinning waiting threads
+because only 1 thread can operate on the list at a time. In the mutex case, since threads are slept
+rather than spun, most of the CPU time is being used on list methods. It should be noted however,
+that CPU time is still spent on unlocking the mutexes.
 
 2.3.2 - Execution Profiling
+The reoccurring line:
+while(__sync_lock_test_and_set(&spin_lockerino, 1));
+spins the threads who do not have access to the lock. This is where most of the CPU time goes in
+the case of high-thread counts. This operation is very expensive in those cases because it forces
+all the threads, besides 1, to keep spinning until another one has access to the lock.
 
 2.3.3 - Mutex Wait Time
+The average lock-wait time rises so dramatically with the number of contending threads because
+only 1 thread can have access to the lock at a time. This means all other threads must wait on the
+lock for a longer period of time. The completion time per operation rises with the number of contending
+threads because of the increase in context switches. It is possible for the wait time per operation to
+increase faster than the completion time per operation because lock-wait is counted by all threads at
+the same time, while completion time is only recorded while the thread isn't spinning. This means lock-
+wait time will always increase faster than time per operation.
 
 2.3.4 - Performance of Partitioned Lists
-
+The performance of the synchronized methods improves as the number of lists increases. This is because
+there are less threads waiting on each lock. The throughput will increase up until lock-wait no longer
+becomes the bottleneck. Once this is reached, we will no longer see an improvement in performance because
+the new bottleneck will be list methods which will not be affected by the number of lists. The throughput
+of a single list with fewer (1/N) threads is equivalent to the throughput of an N-way partitioned
+list in this case because of each sublist's equivalent size. When this isn't the case, each sublist will
+have a different bottleneck causing the throughput to be different.
 
 --------------
 | References |
@@ -109,3 +136,9 @@ Much of the code has been recycled from my Project2a:
 https://github.com/rmiyahara/CS111/tree/master/Project2a
 
 man pages:
+http://man7.org/linux/man-pages/man2/clock_gettime.2.html
+https://gcc.gnu.org/onlinedocs/gcc-4.4.3/gcc/Atomic-Builtins.html
+https://linux.die.net/man/1/gnuplot
+
+pthread tutorial
+https://computing.llnl.gov/tutorials/pthreads/
