@@ -1,0 +1,111 @@
+NAME: Ryan Miyahara
+EMAIL: rmiyahara144@gmail.com
+ID: 804585999
+
+------------------
+| Included Files |
+------------------
+Within this submission are the following files:
+SortedList.h
+Describes the Doubly Linked List interface. Provided by the class.
+
+SortedList.c
+Implements the Doubly Linked List interface. Provides the user with the following functions:
+void SortedList_insert(SortedList_t *list, SortedListElement_t *element);
+Inserts element into list while maintaining the sorted attribute of the list.
+int SortedList_delete( SortedListElement_t *element);
+Deletes an element from the linked list.
+SortedListElement_t *SortedList_lookup(SortedList_t *list, const char *key);
+Returns a pointer to the element containing key. If it doesn't exist, NULL is returned.
+int SortedList_length(SortedList_t *list);
+Returns the length of list.
+
+lab2_list.c
+This file compiles to make an executable which creates a certain number of threads
+which inserts, deletes, or looks up a certain number of times. The executable is
+specified in the following way:
+$ ./lab2_add [--threads=#threads --iterations=#iterations --yield=[idl] --sync=[ms] --debug]
+--threads=#threads
+The threads flag allows the user to set the number of threads that the program creates. If
+this flag isn't used, only 1 thread is specified.
+--iterations=#iterations
+The iterations flag allows the user to set the number of times the counter is added and
+subtracted from. If this flag isn't used, 1 iteration is specified.
+--yield=[idl]
+This flag takes no arguments and calls the POSIX sched_yield() function with every addition.
+i refers to insert, d refers to delete, and l refers to lookup. Each of these performs an
+action on the list.
+--sync=[ms]
+This flag prevents synchronization errors from happening with the use of a mutex(m),
+spin-lock(s), or a compare-and-swap(c).
+--debug
+Gives the user helpful output for debugging.
+The executable uses the following exit codes:
+0: successful run
+1: invalid argument or system call error
+2: other failures ... e.g. list operation failures due to conflicting updates
+
+Makefile
+Builds all the executables and has the following targets:
+build (default)
+Compiles all programs with the -Wall, -Wextra, and -pthread flags.
+tests
+Runs all of the test cases for the lab2_add.c and lab2_list.c programs. The results are then
+stored in lab2_add.csv and lab2_list.csv respectively.
+graphs
+Uses gnuplot(1), lab2_add.csv, and lab2_list.csv to create all of the attached graphs.
+dist
+Creates the deliverable tarball
+clean
+Deletes all programs and output created by the Makefile
+
+lab2b_list.csv
+Holds data from all of the tests done on lab2_list.c. The data from this file is used to make
+lab2b_*.png
+
+profile.out
+This file is an execution profiling report showing where time was spent in the un-partitioned
+spin-lock implementation.
+
+lab2b_1.png
+This is a graph that plots throughput vs. number of threads for mutex and spin-lock
+synchronized list operations.
+
+lab2_2.png
+This is a graph that plots mean time per mutex wait and mean time per operation for mutex-
+synchronized list operations.
+
+lab2_3.png
+This is a graph that plots successful iterations vs. threads for each synchronization method.
+
+lab2_4.png
+This is a graph that plots throughput vs. number of threads for mutex synchronized
+partitioned lists.
+
+lab2_5.png
+This is a graph that plots throughput vs. number of threads for spin-lock-synchronized
+partitioned lists.
+
+plotlist.sh
+This shell script performs all the tests on lab2_list.c to provide the data in
+lab2_list.csv.
+
+-------------
+| Questions |
+-------------
+2.3.1 - CPU time in the basic list implementation
+
+2.3.2 - Execution Profiling
+
+2.3.3 - Mutex Wait Time
+
+2.3.4 - Performance of Partitioned Lists
+
+
+--------------
+| References |
+--------------
+Much of the code has been recycled from my Project2a:
+https://github.com/rmiyahara/CS111/tree/master/Project2a
+
+man pages:
