@@ -93,6 +93,9 @@ plotlist.sh
 This shell script performs all the tests on lab2_list.c to provide the data in
 lab2_list.csv.
 
+lab2_list.gp
+This shell script creates lab2_*.png by graphing the data from lab2b_list.csv.
+
 -------------
 | Questions |
 -------------

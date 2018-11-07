@@ -342,7 +342,7 @@ int main(int argc, char** argv) {
     long long average_runtime = runtime / num_ops;
 
     //Print CSV
-    printf("%s,%d,%d,%d,%ld,%lld,%lld\n", tag, thread_count, iteration_count, 1, num_ops, runtime, average_runtime);
+    printf("%s,%d,%d,%d,%ld,%lld,%lld\n", tag, thread_count, iteration_count, list_count, num_ops, runtime, average_runtime);
     
     //Free dynamic memory
     for(i = 0; i < element_count; i++)

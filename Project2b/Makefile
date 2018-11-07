@@ -3,12 +3,13 @@
 #ID: 804585999
 
 default:
-	gcc -Wall -Wextra -g -pthread lab2_list.c SortedList.c -o lab2_list
+	gcc -Wall -Wextra -Wl,--no-as-needed -lprofiler -Wl,--as-needed -g -pthread lab2_list.c SortedList.c -o lab2_list
 
 tests:
 	make;
 	chmod +x ./plotlist.sh;
 	./plotlist.sh
+
 profile:
 	
 graphs:
@@ -22,4 +23,4 @@ dist:
 	make tests;
 	make profile;
 	make graphs;
-	tar -zcf lab2b-804585999.tar.gz ./SortedList.h ./SortedList.c ./lab2_list.c ./Makefile ./lab2b_list.csv ./profile.out ./*.png ./plotlist.sh ./README
+	tar -zcf lab2b-804585999.tar.gz ./SortedList.h ./SortedList.c ./lab2_list.c ./Makefile ./lab2b_list.csv ./profile.out ./*.png ./plotlist.sh ./lab2_list.gp ./README
