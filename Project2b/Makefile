@@ -6,9 +6,11 @@ default:
 	gcc -Wall -Wextra -g -pthread lab2_list.c SortedList.c -o lab2_list
 
 tests:
-
+	make;
+	chmod +x ./plotlist.sh;
+	./plotlist.sh
 profile:
-
+	
 graphs:
 
 clean:
