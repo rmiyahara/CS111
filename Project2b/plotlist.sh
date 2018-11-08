@@ -3,8 +3,8 @@
 #EMAIL: rmiyahara144@gmail.com
 #ID: 804585999
 
-rm -f lab2_list.csv
-touch lab2_list.csv
+rm -f lab2b_list.csv
+touch lab2b_list.csv
 
 #Plot 1
 #Mutex synchronized list operations

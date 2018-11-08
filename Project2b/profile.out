@@ -1,0 +1,221 @@
+Total: 56 samples
+      50  89.3%  89.3%       56 100.0% quick_maths
+       4   7.1%  96.4%        4   7.1% SortedList_lookup
+       1   1.8%  98.2%        1   1.8% SortedList_delete
+       1   1.8% 100.0%        1   1.8% SortedList_insert
+       0   0.0% 100.0%       56 100.0% __clone
+       0   0.0% 100.0%       56 100.0% start_thread
+ROUTINE ====================== quick_maths in /u/ce/ugrad/miyahara/Project2b/lab2_list.c
+    50     56 Total samples (flat / cumulative)
+     .      .   94:         default:
+     .      .   95:             strcat(hold, "-none");
+     .      .   96:     }
+     .      .   97: }
+     .      .   98: 
+---
+     .      .   99: void* quick_maths(void* spawnid){
+     .      .  100:     signal(SIGSEGV, sig_handler);
+     .      .  101:     int hold = *((int*)spawnid);
+     .      .  102:     SortedListElement_t* insert_me;
+     .      .  103:     int length = 0;
+     .      .  104:     int i;
+     .      .  105:     for(i = hold; i < element_count; i += thread_count){ //Insert
+     .      .  106:         switch (sync_tag) {
+     .      .  107:             case 's':
+    27     27  108:                 while(__sync_lock_test_and_set(&spin_lockerino, 1) == 1);
+     .      1  109:                 SortedList_insert(sortedlist, &element[i]);
+     .      .  110:                 __sync_lock_release(&spin_lockerino);
+     .      .  111:                 break;
+     .      .  112:             case 'm':
+     .      .  113:                 pthread_mutex_lock(&lockerino);
+     .      .  114:                 SortedList_insert(sortedlist, &element[i]);
+     .      .  115:                 pthread_mutex_unlock(&lockerino);
+     .      .  116:                 break;
+     .      .  117:             default:
+     .      .  118:                 SortedList_insert(sortedlist, &element[i]);
+     .      .  119:         }
+     .      .  120:     }
+     .      .  121:     
+     .      .  122:     switch (sync_tag) { //Length
+     .      .  123:             case 's':
+     .      .  124:                 while(__sync_lock_test_and_set(&spin_lockerino, 1));
+     .      .  125:                 length = SortedList_length(sortedlist);
+     .      .  126:                 if (length < 0){
+     .      .  127:                     fprintf(stderr, "Length error.\n");
+     .      .  128:                     exit(2);
+     .      .  129:                 }
+     .      .  130:                 __sync_lock_release(&spin_lockerino);
+     .      .  131:                 break;
+     .      .  132:             case 'm':
+     .      .  133:                 pthread_mutex_lock(&lockerino);
+     .      .  134:                 length = SortedList_length(sortedlist);
+     .      .  135:                 if (length < 0){
+     .      .  136:                     fprintf(stderr, "Length error.\n");
+     .      .  137:                     exit(2);
+     .      .  138:                 }
+     .      .  139:                 pthread_mutex_unlock(&lockerino);
+     .      .  140:                 break;
+     .      .  141:             default:
+     .      .  142:                 length = SortedList_length(sortedlist);
+     .      .  143:                 if (length < 0){
+     .      .  144:                     fprintf(stderr, "Length error.\n");
+     .      .  145:                     exit(2);
+     .      .  146:                 }
+     .      .  147: 
+     .      .  148:     }
+     .      .  149:     hold = *((int*)spawnid);
+     .      .  150:     for(i = hold; i < element_count; i += thread_count) { //Lookup and delete
+     .      .  151:         switch (sync_tag) {
+     .      .  152:             case 's':
+    23     23  153:                 while(__sync_lock_test_and_set(&spin_lockerino, 1));
+     .      4  154:                 insert_me = SortedList_lookup(sortedlist, element[i].key);
+     .      .  155:                 if(insert_me == NULL) {
+     .      .  156:                     fprintf(stderr, "Lookup error.\n");
+     .      .  157:                     exit(2);
+     .      .  158:                 }
+     .      1  159:                 if (SortedList_delete(insert_me) < 0) {
+     .      .  160:                     fprintf(stderr, "Delete error.\n");
+     .      .  161:                     exit(2);
+     .      .  162:                 }
+     .      .  163:                 __sync_lock_release(&spin_lockerino);
+     .      .  164:                 break;
+     .      .  165:             case 'm':
+     .      .  166:                 pthread_mutex_lock(&lockerino);
+     .      .  167:                 insert_me = SortedList_lookup(sortedlist, element[i].key);
+     .      .  168:                 if(insert_me == NULL){
+     .      .  169:                     fprintf(stderr, "Lookup error.\n");
+     .      .  170:                     exit(2);
+     .      .  171:                 }
+     .      .  172:                 if (SortedList_delete(insert_me) < 0) {
+     .      .  173:                     fprintf(stderr, "Delete error.\n");
+     .      .  174:                     exit(2);
+     .      .  175:                 }
+     .      .  176:                 pthread_mutex_unlock(&lockerino);
+     .      .  177:                 break;
+     .      .  178:             default:
+     .      .  179:                 insert_me = SortedList_lookup(sortedlist, element[i].key);
+     .      .  180:                 if(insert_me == NULL){
+     .      .  181:                     fprintf(stderr, "Lookup error.\n");
+     .      .  182:                     exit(2);
+     .      .  183:                 }
+     .      .  184:                 if (SortedList_delete(insert_me) < 0) {
+     .      .  185:                     fprintf(stderr, "Delete error.\n");
+     .      .  186:                     exit(2);
+     .      .  187:                 }
+     .      .  188:         }
+     .      .  189:     }
+     .      .  190:     return NULL;
+     .      .  191: }
+---
+     .      .  192: 
+     .      .  193: void dothething() {
+     .      .  194:     //Start threads
+     .      .  195:     pthread_t spawn[thread_count]; //Holds all threads
+     .      .  196:     int spawnid[thread_count]; //Holds all thread ids
+ROUTINE ====================== quick_maths in /u/ce/ugrad/miyahara/Project2b/lab2_list.c
+    50     56 Total samples (flat / cumulative)
+     .      .   94:         default:
+     .      .   95:             strcat(hold, "-none");
+     .      .   96:     }
+     .      .   97: }
+     .      .   98: 
+---
+     .      .   99: void* quick_maths(void* spawnid){
+     .      .  100:     signal(SIGSEGV, sig_handler);
+     .      .  101:     int hold = *((int*)spawnid);
+     .      .  102:     SortedListElement_t* insert_me;
+     .      .  103:     int length = 0;
+     .      .  104:     int i;
+     .      .  105:     for(i = hold; i < element_count; i += thread_count){ //Insert
+     .      .  106:         switch (sync_tag) {
+     .      .  107:             case 's':
+    27     27  108:                 while(__sync_lock_test_and_set(&spin_lockerino, 1) == 1);
+     .      1  109:                 SortedList_insert(sortedlist, &element[i]);
+     .      .  110:                 __sync_lock_release(&spin_lockerino);
+     .      .  111:                 break;
+     .      .  112:             case 'm':
+     .      .  113:                 pthread_mutex_lock(&lockerino);
+     .      .  114:                 SortedList_insert(sortedlist, &element[i]);
+     .      .  115:                 pthread_mutex_unlock(&lockerino);
+     .      .  116:                 break;
+     .      .  117:             default:
+     .      .  118:                 SortedList_insert(sortedlist, &element[i]);
+     .      .  119:         }
+     .      .  120:     }
+     .      .  121:     
+     .      .  122:     switch (sync_tag) { //Length
+     .      .  123:             case 's':
+     .      .  124:                 while(__sync_lock_test_and_set(&spin_lockerino, 1));
+     .      .  125:                 length = SortedList_length(sortedlist);
+     .      .  126:                 if (length < 0){
+     .      .  127:                     fprintf(stderr, "Length error.\n");
+     .      .  128:                     exit(2);
+     .      .  129:                 }
+     .      .  130:                 __sync_lock_release(&spin_lockerino);
+     .      .  131:                 break;
+     .      .  132:             case 'm':
+     .      .  133:                 pthread_mutex_lock(&lockerino);
+     .      .  134:                 length = SortedList_length(sortedlist);
+     .      .  135:                 if (length < 0){
+     .      .  136:                     fprintf(stderr, "Length error.\n");
+     .      .  137:                     exit(2);
+     .      .  138:                 }
+     .      .  139:                 pthread_mutex_unlock(&lockerino);
+     .      .  140:                 break;
+     .      .  141:             default:
+     .      .  142:                 length = SortedList_length(sortedlist);
+     .      .  143:                 if (length < 0){
+     .      .  144:                     fprintf(stderr, "Length error.\n");
+     .      .  145:                     exit(2);
+     .      .  146:                 }
+     .      .  147: 
+     .      .  148:     }
+     .      .  149:     hold = *((int*)spawnid);
+     .      .  150:     for(i = hold; i < element_count; i += thread_count) { //Lookup and delete
+     .      .  151:         switch (sync_tag) {
+     .      .  152:             case 's':
+    23     23  153:                 while(__sync_lock_test_and_set(&spin_lockerino, 1));
+     .      4  154:                 insert_me = SortedList_lookup(sortedlist, element[i].key);
+     .      .  155:                 if(insert_me == NULL) {
+     .      .  156:                     fprintf(stderr, "Lookup error.\n");
+     .      .  157:                     exit(2);
+     .      .  158:                 }
+     .      1  159:                 if (SortedList_delete(insert_me) < 0) {
+     .      .  160:                     fprintf(stderr, "Delete error.\n");
+     .      .  161:                     exit(2);
+     .      .  162:                 }
+     .      .  163:                 __sync_lock_release(&spin_lockerino);
+     .      .  164:                 break;
+     .      .  165:             case 'm':
+     .      .  166:                 pthread_mutex_lock(&lockerino);
+     .      .  167:                 insert_me = SortedList_lookup(sortedlist, element[i].key);
+     .      .  168:                 if(insert_me == NULL){
+     .      .  169:                     fprintf(stderr, "Lookup error.\n");
+     .      .  170:                     exit(2);
+     .      .  171:                 }
+     .      .  172:                 if (SortedList_delete(insert_me) < 0) {
+     .      .  173:                     fprintf(stderr, "Delete error.\n");
+     .      .  174:                     exit(2);
+     .      .  175:                 }
+     .      .  176:                 pthread_mutex_unlock(&lockerino);
+     .      .  177:                 break;
+     .      .  178:             default:
+     .      .  179:                 insert_me = SortedList_lookup(sortedlist, element[i].key);
+     .      .  180:                 if(insert_me == NULL){
+     .      .  181:                     fprintf(stderr, "Lookup error.\n");
+     .      .  182:                     exit(2);
+     .      .  183:                 }
+     .      .  184:                 if (SortedList_delete(insert_me) < 0) {
+     .      .  185:                     fprintf(stderr, "Delete error.\n");
+     .      .  186:                     exit(2);
+     .      .  187:                 }
+     .      .  188:         }
+     .      .  189:     }
+     .      .  190:     return NULL;
+     .      .  191: }
+---
+     .      .  192: 
+     .      .  193: void dothething() {
+     .      .  194:     //Start threads
+     .      .  195:     pthread_t spawn[thread_count]; //Holds all threads
+     .      .  196:     int spawnid[thread_count]; //Holds all thread ids

@@ -36,13 +36,11 @@ set title "List-1: Scalability of synchronization mechanisms"
 set xlabel "Number of Threads"
 set logscale x 2
 unset xrange
-set xrange [0.75:]
+set xrange [0.75:32]
 set ylabel "Throughput (ops/sec)"
 set logscale y
 set output 'lab2b_1.png'
 set key left top
 plot \
-     "< grep -e 'list-none-m,[0-9]*,1000,' lab2_list.csv" using ($2):($7)/(($3)/4) \
-	title '(adjusted) list w/mutex' with linespoints lc rgb 'blue', \
-     "< grep -e 'list-none-s,[0-9]*,1000,' lab2_list.csv" using ($2):($7)/(($3)/4) \
-	title '(adjusted) list w/spin-lock' with linespoints lc rgb 'green'
+     "< grep -e 'list-none-m,[0-9]*,1000,' lab2b_list.csv" using ($2):(1000000000/($7)) title 'List w/mutex' with linespoints lc rgb 'red', \
+     "< grep -e 'list-none-s,[0-9]*,1000,' lab2b_list.csv" using ($2):(1000000000/($7)) title 'List w/spin-lock' with linespoints lc rgb 'blue'
