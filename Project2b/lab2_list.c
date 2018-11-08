@@ -31,6 +31,7 @@ int spin_lockerino = 0;
 SortedList_t* sortedlist;
 SortedListElement_t* element;
 int element_count = -1;
+int* thread_time;
 
 void debug_print(int mes) {
     switch(mes) {
@@ -99,18 +100,44 @@ void label(char* hold) {
 void* quick_maths(void* spawnid){
     signal(SIGSEGV, sig_handler);
     int hold = *((int*)spawnid);
+    long long time = 0;
+    struct timespec start;
+    struct timespec end;
+    long long holdtime = 0;
     SortedListElement_t* insert_me;
     int length = 0;
     int i;
     for(i = hold; i < element_count; i += thread_count){ //Insert
         switch (sync_tag) {
             case 's':
+                if (clock_gettime(CLOCK_MONOTONIC, &start) < 0) {
+                    fprintf(stderr, "Unable to set start time.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
                 while(__sync_lock_test_and_set(&spin_lockerino, 1) == 1);
+                if (clock_gettime(CLOCK_MONOTONIC, &end) < 0) {
+                    fprintf(stderr, "Unable to set end time.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                holdtime = (end.tv_sec - start.tv_sec) * 1000000000L;
+                holdtime -= start.tv_nsec;
+                holdtime += end.tv_nsec;
                 SortedList_insert(sortedlist, &element[i]);
                 __sync_lock_release(&spin_lockerino);
                 break;
             case 'm':
+                if (clock_gettime(CLOCK_MONOTONIC, &start) < 0) {
+                    fprintf(stderr, "Unable to set start time.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
                 pthread_mutex_lock(&lockerino);
+                if (clock_gettime(CLOCK_MONOTONIC, &end) < 0) {
+                    fprintf(stderr, "Unable to set end time.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                holdtime = (end.tv_sec - start.tv_sec) * 1000000000L;
+                holdtime -= start.tv_nsec;
+                holdtime += end.tv_nsec;
                 SortedList_insert(sortedlist, &element[i]);
                 pthread_mutex_unlock(&lockerino);
                 break;
@@ -118,10 +145,22 @@ void* quick_maths(void* spawnid){
                 SortedList_insert(sortedlist, &element[i]);
         }
     }
-    
+    time += holdtime;
+    holdtime = 0;
     switch (sync_tag) { //Length
             case 's':
+                if (clock_gettime(CLOCK_MONOTONIC, &start) < 0) {
+                    fprintf(stderr, "Unable to set start time.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
                 while(__sync_lock_test_and_set(&spin_lockerino, 1));
+                if (clock_gettime(CLOCK_MONOTONIC, &end) < 0) {
+                    fprintf(stderr, "Unable to set end time.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                holdtime = (end.tv_sec - start.tv_sec) * 1000000000L;
+                holdtime -= start.tv_nsec;
+                holdtime += end.tv_nsec;
                 length = SortedList_length(sortedlist);
                 if (length < 0){
                     fprintf(stderr, "Length error.\n");
@@ -130,7 +169,18 @@ void* quick_maths(void* spawnid){
                 __sync_lock_release(&spin_lockerino);
                 break;
             case 'm':
+                if (clock_gettime(CLOCK_MONOTONIC, &start) < 0) {
+                    fprintf(stderr, "Unable to set start time.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
                 pthread_mutex_lock(&lockerino);
+                if (clock_gettime(CLOCK_MONOTONIC, &end) < 0) {
+                    fprintf(stderr, "Unable to set end time.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                holdtime = (end.tv_sec - start.tv_sec) * 1000000000L;
+                holdtime -= start.tv_nsec;
+                holdtime += end.tv_nsec;
                 length = SortedList_length(sortedlist);
                 if (length < 0){
                     fprintf(stderr, "Length error.\n");
@@ -146,11 +196,24 @@ void* quick_maths(void* spawnid){
                 }
 
     }
+    time += holdtime;
+    holdtime = 0;
     hold = *((int*)spawnid);
     for(i = hold; i < element_count; i += thread_count) { //Lookup and delete
         switch (sync_tag) {
             case 's':
+                if (clock_gettime(CLOCK_MONOTONIC, &start) < 0) {
+                    fprintf(stderr, "Unable to set start time.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
                 while(__sync_lock_test_and_set(&spin_lockerino, 1));
+                if (clock_gettime(CLOCK_MONOTONIC, &end) < 0) {
+                    fprintf(stderr, "Unable to set end time.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                holdtime = (end.tv_sec - start.tv_sec) * 1000000000L;
+                holdtime -= start.tv_nsec;
+                holdtime += end.tv_nsec;
                 insert_me = SortedList_lookup(sortedlist, element[i].key);
                 if(insert_me == NULL) {
                     fprintf(stderr, "Lookup error.\n");
@@ -163,7 +226,18 @@ void* quick_maths(void* spawnid){
                 __sync_lock_release(&spin_lockerino);
                 break;
             case 'm':
+                if (clock_gettime(CLOCK_MONOTONIC, &start) < 0) {
+                    fprintf(stderr, "Unable to set start time.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
                 pthread_mutex_lock(&lockerino);
+                if (clock_gettime(CLOCK_MONOTONIC, &end) < 0) {
+                    fprintf(stderr, "Unable to set end time.\nError message: %s\n Error number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                holdtime = (end.tv_sec - start.tv_sec) * 1000000000L;
+                holdtime -= start.tv_nsec;
+                holdtime += end.tv_nsec;
                 insert_me = SortedList_lookup(sortedlist, element[i].key);
                 if(insert_me == NULL){
                     fprintf(stderr, "Lookup error.\n");
@@ -187,13 +261,16 @@ void* quick_maths(void* spawnid){
                 }
         }
     }
+    time += holdtime;
+    thread_time[hold] = time;
     return NULL;
 }
 
-void dothething() {
+long long dothething() {
     //Start threads
     pthread_t spawn[thread_count]; //Holds all threads
     int spawnid[thread_count]; //Holds all thread ids
+    thread_time = (int*)malloc(sizeof(int) * thread_count);
     int i;
     for (i = 0; i < thread_count; i++) {
         spawnid[i] = i;
@@ -205,13 +282,21 @@ void dothething() {
     if (debug) debug_print(7);
 
     //Wait for threads
-    for (int i = 0; i < thread_count; i++) {
+    for (i = 0; i < thread_count; i++) {
         if (pthread_join(spawn[i], NULL) < 0) {
             fprintf(stderr, "Unable to wait for thread %d.\nError message: %s\n Error number: %d\n", i, strerror(errno), errno);
             exit(2);
         }
     }
     if (debug) debug_print(8);
+
+    //Compute total thread_time
+    long long counter = 0;
+    for (i = 0; i < thread_count; i++) {
+        counter += thread_time[i];
+    }
+    free(thread_time);
+    return counter;
 }
 
 int main(int argc, char** argv) {
@@ -319,7 +404,7 @@ int main(int argc, char** argv) {
     }
     if (debug) debug_print(3);
 
-    dothething();
+    long long thread_total_time = dothething()/(3 * element_count);
 
     //Mark end
     struct timespec end;
@@ -342,7 +427,7 @@ int main(int argc, char** argv) {
     long long average_runtime = runtime / num_ops;
 
     //Print CSV
-    printf("%s,%d,%d,%d,%ld,%lld,%lld\n", tag, thread_count, iteration_count, list_count, num_ops, runtime, average_runtime);
+    printf("%s,%d,%d,%d,%ld,%lld,%lld,%lld\n", tag, thread_count, iteration_count, list_count, num_ops, runtime, average_runtime, thread_total_time);
     
     //Free dynamic memory
     for(i = 0; i < element_count; i++)

@@ -32,15 +32,52 @@
 set terminal png
 set datafile separator ","
 
-set title "List-1: Scalability of synchronization mechanisms"
+set title "List-1: Scalability of Synchronization Mechanisms"
 set xlabel "Number of Threads"
 set logscale x 2
 unset xrange
 set xrange [0.75:32]
-set ylabel "Throughput (ops/sec)"
+set ylabel "Throughput (ops/s)"
 set logscale y
 set output 'lab2b_1.png'
 set key left top
 plot \
-     "< grep -e 'list-none-m,[0-9]*,1000,' lab2b_list.csv" using ($2):(1000000000/($7)) title 'List w/mutex' with linespoints lc rgb 'red', \
-     "< grep -e 'list-none-s,[0-9]*,1000,' lab2b_list.csv" using ($2):(1000000000/($7)) title 'List w/spin-lock' with linespoints lc rgb 'blue'
+     "< grep -e 'list-none-m,[0-9]*,1000,1' lab2b_list.csv" using ($2):(1000000000/($7)) title 'List w/mutex' with linespoints lc rgb 'red', \
+     "< grep -e 'list-none-s,[0-9]*,1000,1' lab2b_list.csv" using ($2):(1000000000/($7)) title 'List w/spin-lock' with linespoints lc rgb 'blue'
+
+set title "List-2: Mutex-Wait-Time and Operation Time"
+set xlabel "Number of Threads"
+set logscale x 2
+unset xrange
+set xrange [0.75:32]
+set ylabel "Time (ns)"
+set logscale y
+set output 'lab2b_2.png'
+set key left top
+plot \
+     "< grep -e 'list-none-m,[0-9]*,1000,1' lab2b_list.csv" using ($2):($8) title 'Wait-for-lock time' with linespoints lc rgb 'red', \
+     "< grep -e 'list-none-m,[0-9]*,1000,1' lab2b_list.csv" using ($2):($7) title 'Average time per operation' with linespoints lc rgb 'blue'
+
+#TODO: PLOT-3
+
+set title "List-4: Aggregated Throughput with Mutex"
+set xlabel "Number of Threads"
+set logscale x 2
+unset xrange
+set xrange [0.75:32]
+set ylabel "Aggregated Throughput (Total ops/s)"
+set logscale y
+set output 'lab2b_4.png'
+set key left top
+#TODO: SET PLOT
+
+set title "List-5: Aggregated Throughput with Spinlock"
+set xlabel "Number of Threads"
+set logscale x 2
+unset xrange
+set xrange [0.75:32]
+set ylabel "Aggregated Throughput (Total ops/s)"
+set logscale y
+set output 'lab2b_5.png'
+set key left top
+#TODO: SET PLOT
