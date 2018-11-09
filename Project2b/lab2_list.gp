@@ -58,7 +58,23 @@ plot \
      "< grep -e 'list-none-m,[0-9]*,1000,1' lab2b_list.csv" using ($2):($8) title 'Wait-for-lock time' with linespoints lc rgb 'red', \
      "< grep -e 'list-none-m,[0-9]*,1000,1' lab2b_list.csv" using ($2):($7) title 'Average time per operation' with linespoints lc rgb 'blue'
 
-#TODO: PLOT-3
+set title "List-3: Successful runs with and without Synchronization"
+set xlabel "Number of Threads"
+set logscale x 2
+unset xrange
+set xrange [0.75:32]
+set ylabel "Number of successful iterations"
+set logscale y
+set output 'lab2b_3.png'
+set key left top
+plot \
+    "< grep -e 'list-id-none,[0-9]*,[0-9]*,4,' lab2b_list.csv" using ($2):($3) \
+    with points lc rgb 'red' title 'unprotected', \
+    "< grep -e 'list-id-m,[0-9]*,[0-9]*,4,' lab2b_list.csv" using ($2):($3) \
+    with points lc rgb 'blue' title 'Mutex enabled', \
+    "< grep -e 'list-id-s,[0-9]*,[0-9]*,4,' lab2b_list.csv" using ($2):($3) \
+    with points lc rgb 'green' title 'Spinlock enabled', \
+
 
 set title "List-4: Aggregated Throughput with Mutex"
 set xlabel "Number of Threads"
@@ -69,7 +85,11 @@ set ylabel "Aggregated Throughput (Total ops/s)"
 set logscale y
 set output 'lab2b_4.png'
 set key left top
-#TODO: SET PLOT
+plot \
+     "< grep -e 'list-none-m,[0-9]*,1000,1,' lab2b_list.csv" using ($2):(1000000000/($7)) with linespoints lc rgb 'red' title 'Lists = 1', \
+     "< grep -e 'list-none-m,[0-9]*,1000,4,' lab2b_list.csv" using ($2):(1000000000/($7)) with linespoints lc rgb 'blue' title 'Lists = 4', \
+     "< grep -e 'list-none-m,[0-9]*,1000,8,' lab2b_list.csv" using ($2):(1000000000/($7)) with linespoints lc rgb 'yellow' title 'Lists = 8', \
+     "< grep -e 'list-none-m,[0-9]*,1000,16,' lab2b_list.csv" using ($2):(1000000000/($7)) with linespoints lc rgb 'green' title 'Lists = 16'
 
 set title "List-5: Aggregated Throughput with Spinlock"
 set xlabel "Number of Threads"
@@ -80,4 +100,8 @@ set ylabel "Aggregated Throughput (Total ops/s)"
 set logscale y
 set output 'lab2b_5.png'
 set key left top
-#TODO: SET PLOT
+plot \
+     "< grep -e 'list-none-s,[0-9]*,1000,1,' lab2b_list.csv" using ($2):(1000000000/($7)) with linespoints lc rgb 'red' title 'Lists = 1', \
+     "< grep -e 'list-none-s,[0-9]*,1000,4,' lab2b_list.csv" using ($2):(1000000000/($7)) with linespoints lc rgb 'blue' title 'Lists = 4', \
+     "< grep -e 'list-none-s,[0-9]*,1000,8,' lab2b_list.csv" using ($2):(1000000000/($7)) with linespoints lc rgb 'yellow' title 'Lists = 8', \
+     "< grep -e 'list-none-s,[0-9]*,1000,16,' lab2b_list.csv" using ($2):(1000000000/($7)) with linespoints lc rgb 'green' title 'Lists = 16'
