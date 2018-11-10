@@ -129,7 +129,7 @@ void* quick_maths(void* spawnid){
                 holdtime = (end.tv_sec - start.tv_sec) * 1000000000L;
                 holdtime -= start.tv_nsec;
                 holdtime += end.tv_nsec;
-                SortedList_insert(sortedlist[list_legend[i]], &element[i]);
+                SortedList_insert(&sortedlist[list_legend[i]], &element[i]);
                 __sync_lock_release(&spin_lockerino[list_legend[i]]);
                 break;
             case 'm':
@@ -145,7 +145,7 @@ void* quick_maths(void* spawnid){
                 holdtime = (end.tv_sec - start.tv_sec) * 1000000000L;
                 holdtime -= start.tv_nsec;
                 holdtime += end.tv_nsec;
-                SortedList_insert(sortedlist[list_legend[i]], &element[i]);
+                SortedList_insert(&sortedlist[list_legend[i]], &element[i]);
                 pthread_mutex_unlock(&lockerino[list_legend[i]]);
                 break;
             default:
