@@ -25,7 +25,7 @@ graphs: tests
 	./lab2_list.gp
 
 clean:
-	rm -f ./lab2b-804585999.tar.gz ./lab2b_*.png ./lab2b_list.csv ./lab2_list ./profile.out
+	rm -f ./lab2b-804585999.tar.gz ./lab2_list
 
 dist: profile graphs
 	tar -zcf lab2b-804585999.tar.gz ./SortedList.h ./SortedList.c ./lab2_list.c ./Makefile ./lab2b_list.csv ./profile.out ./lab2b_*.png ./plotlist.sh ./lab2_list.gp ./README
