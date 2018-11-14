@@ -1,0 +1,27 @@
+NAME: Ryan Miyahara
+EMAIL: rmiyahara144@gmail.com
+ID: 804585999
+
+------------------
+| Included Files |
+------------------
+Within this submission are the following files:
+
+
+Makefile
+Builds all the executables and has the following targets:
+build (default)
+
+--------------
+| References |
+--------------
+man pages:
+http://man7.org/linux/man-pages/man2/poll.2.html
+http://man7.org/linux/man-pages/man2/open.2.html
+http://man7.org/linux/man-pages/man2/fcntl.2.html
+Grove Temperature Sensor Documentation:
+http://wiki.seeedstudio.com/Grove-Temperature_Sensor_V1.2/
+MRAA Library Documentation:
+https://iotdk.intel.com/docs/master/mraa/
+General Purpose and Analog I/O Tutorial:
+https://drive.google.com/drive/folders/0B6dyEb8VXZo-N3hVcVI0UFpWSVk
