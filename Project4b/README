@@ -6,7 +6,36 @@ ID: 804585999
 | Included Files |
 ------------------
 Within this submission are the following files:
-
+lab4b.c
+This file compiles with gcc to create an executable which prints out the current temperature
+(measured by the temperature sensor on the BeagleBone) periodically. The executable supports
+the following flags:
+--period=seconds
+This flag takes in an integer and sets how often the system polls for a new temperature.
+--scale=[FC]
+This flag sets which scale the temperature will be displayed in: (F)ahrenheit or (C)entegrade.
+--log=filename
+This flag will log all of the executables output into the specified file. If the file does not
+exist, it will be made.
+--debug
+Gives the user helpful output for debugging.
+The executable also takes the following commands from stdin:
+SCALE=F
+This command should cause all subsequent reports to be generated in degrees Fahrenheit.
+SCALE=C
+This command should cause all subsequent reports to be generated in degrees Centegrade
+PERIOD=seconds
+This command should change the number of seconds between reporting intervals. This command
+does not take effect until after the next report.
+STOP
+This command causes the program to stop generating reports, but continues processing input
+commands. If the program is not generating reports, merely logs receipt of the command.
+START
+This command should cause the program to, if stopped, resume generating reports. If the program is not stopped, merely log receipt of the command.
+LOG line of text
+This command requires no action beyond logging its receipt (the entire command, including the LOG). In project 4C, the server may send such commands to help you debug problems with your reports.
+OFF
+This command should, like pressing the button, output (and log) a time-stamped SHUTDOWN message and exit.
 
 Makefile
 Builds all the executables and has the following targets:

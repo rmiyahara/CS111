@@ -7,7 +7,7 @@ ifndef VERBOSE
 endif
 
 default:
-	gcc -Wall -Wextra -g lab4b.c -o lab4b
+	gcc -Wall -Wextra -lmraa -g lab4b.c -o lab4b
 check:
 
 clean:
