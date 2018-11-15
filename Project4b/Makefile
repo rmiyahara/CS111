@@ -7,11 +7,14 @@ ifndef VERBOSE
 endif
 
 default:
-	gcc -Wall -Wextra -lmraa -g lab4b.c -o lab4b
-check:
+	gcc -Wall -Wextra -lmraa -lm -g lab4b.c -o lab4b
+
+check: default
+	chmod +x check.sh
+	./check.sh
 
 clean:
 	rm -f ./lab4b-804585999.tar.gz ./lab4b
 
 dist: default
-	tar -zcf lab24b-804585999.tar.gz ./Makefile ./README
+	tar -zcf lab24b-804585999.tar.gz ./Makefile ./README ./lab4b.c ./check.sh

@@ -31,15 +31,24 @@ STOP
 This command causes the program to stop generating reports, but continues processing input
 commands. If the program is not generating reports, merely logs receipt of the command.
 START
-This command should cause the program to, if stopped, resume generating reports. If the program is not stopped, merely log receipt of the command.
+This command should cause the program to, if stopped, resume generating reports. If the program is
+not stopped, this merely logs a receipt of the command.
 LOG line of text
-This command requires no action beyond logging its receipt (the entire command, including the LOG). In project 4C, the server may send such commands to help you debug problems with your reports.
+This command requires no action beyond logging its receipt (the entire command, including the LOG).
 OFF
-This command should, like pressing the button, output (and log) a time-stamped SHUTDOWN message and exit.
+This command should, like pressing the button, output (and log) a time-stamped SHUTDOWN message and
+exit.
 
 Makefile
 Builds all the executables and has the following targets:
-build (default)
+default
+Compiles lab4b.c with the appropriate flags.
+check
+Executes an automated smoke-test of your application to see if it runs and can talk to its sensors.
+clean
+Deletes all files lab4b creates.
+dist
+Creates the submission tarball.
 
 --------------
 | References |

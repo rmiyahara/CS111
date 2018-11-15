@@ -12,16 +12,19 @@ ID: 804585999
 #include <sys/time.h>
 #include <mraa.h>
 #include <mraa/aio.h>
+#include <poll.h>
 #include "fcntl.h"
+#include <math.h>
 
 //Global Variables
-int period = 1;
-char degrees = 'F';
-bool debug = false;
-char* log_filename = NULL;
-int log_fd;
-mraa_aio_context temp;
-mraa_gpio_context butt;
+int period = 1; //Determines how often reports are made
+char degrees = 'F'; //Determines which units are used for temperature
+bool debug = false; //If set to true, debug mode is enabled
+char* log_filename = NULL; //Holds the filename of the logfile
+int log_fd; //Hold the file descriptor of the logfile
+bool reports = true; //Does not make reports when set to false
+mraa_aio_context temp; //Refers to the temperature sensor
+mraa_gpio_context butt; //Refers to the button
 
 void debug_print(int mes) {
     switch(mes) {
@@ -37,17 +40,124 @@ void debug_print(int mes) {
         case 3: //When rip_sensors() is called
             printf("Goodbye sensors.\n");
             break;
+        case 4: //Help with segfault
+            printf("Working on command.\n");
+            break;
         default:
             printf("You shouldn't get here!\n");
     }
     return;
 }
 
-void time_print() { //Uses localtime to print formatted time
+float format_temperature(int reading) { //Formats raw temperature from sensor to F or C
+    //Taken from Temperature Sensor Documentation
+    const int B = 4275;               // B value of the thermistor
+    const int R0 = 100000;            // R0 = 100k
+    float R = 1023.0/reading-1.0;
+    R = R0 * R;
+    float celcius = 1.0/(log(R/R0)/B+1/298.15)-273.15; // convert to temperature via datasheet
+    
+    if (degrees == 'F')
+        return (9.0 * celcius / 5.0) + 32;
+    else
+        return celcius; 
+}
+
+void print_output(float* addon) { //Uses localtime to print formatted time
     time_t timer;
     time(&timer);
     struct tm* time = localtime(&timer);
-    fprintf(stdout, "%.2d:%.2d:%.2d \n", time->tm_hour, time->tm_min, time->tm_sec);
+    if (addon) {
+        if (reports) {
+            printf("%.2d:%.2d:%.2d %.1f\n", time->tm_hour, time->tm_min, time->tm_sec, *addon);
+            if (log_filename)
+                dprintf(log_fd, "%.2d:%.2d:%.2d %.1f\n", time->tm_hour, time->tm_min, time->tm_sec, *addon);
+        }
+    }
+    else {
+        if (reports) {
+            printf("%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
+            if (log_filename)
+                dprintf(log_fd, "%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
+        }
+        exit(0); //Either the button was pressed or an OFF command was given
+    }
+    return;
+}
+
+//Command Functions
+void scale_command(char change) {
+    switch (change) {
+        case 'c':
+        case 'C':
+            degrees = change;
+            break;
+        case 'f':
+        case 'F':
+            degrees = change;
+            break;
+        default:
+            return;
+    }
+    if (log_filename)
+        dprintf(log_fd, "SCALE=%c\n", change);
+    return;
+}
+
+void period_command(int change) {
+    if (change > 0)
+        period = change;
+    if (log_filename)
+        dprintf(log_fd, "PERIOD=%d\n", change);
+    return;
+}
+
+void stop_command() {
+    reports = false;
+    if (log_filename)
+        dprintf(log_fd, "STOP\n");
+    return;
+}
+
+void start_command() {
+    reports = true;
+    if (log_filename)
+        dprintf(log_fd, "START\n");
+    return;
+}
+
+void log_command(char* log_me) {
+    if (log_filename)
+        dprintf(log_fd, "%s\n", log_me);
+    return;
+}
+
+void off_command() {
+    if (log_filename)
+        dprintf(log_fd, "OFF\n");
+    print_output(NULL);
+    return;
+}
+
+void command_scheduler(char* command) {
+    if (!(strcmp(command, "SCALE=F")))
+        scale_command('F');
+    else if (!(strcmp(command, "SCALE=C")))
+        scale_command('C');
+    else if (!(strncmp(command, "PERIOD=", 7)))
+        period_command(atoi(command + 7));
+    else if (!(strcmp(command, "STOP")))
+        stop_command();
+    else if (!(strcmp(command, "START")))
+        start_command();
+    else if (!(strncmp(command, "LOG", 3)))
+        log_command(command);
+    else if (!(strcmp(command, "OFF")))
+        off_command();
+    else {
+        if (log_filename)
+            dprintf(log_fd, "%s\n", command);
+    }
     return;
 }
 
@@ -77,8 +187,65 @@ void start_sensors() { //Initializes temperature sensor and button
         fprintf(stderr, "Unable to open the button.\nError message: %s\nError number: %d\n", strerror(errno), errno);
         exit(1);
     }
+    mraa_gpio_dir(butt, MRAA_GPIO_IN);
 
     atexit(rip_sensors);
+    return;
+}
+
+void poll_sensors() { //Polls sensors for data and STD_IN for commands
+    struct pollfd poll_hold;
+    poll_hold.fd = STDIN_FILENO;
+    poll_hold.events = POLLIN | POLLERR | POLLHUP;
+    time_t start;
+    time(&start);
+    time_t end;
+    while(true) {
+        time(&end);
+        if (difftime(end, start) >= period) {
+            float fixed = format_temperature(mraa_aio_read(temp));
+            if (reports)
+                print_output(&fixed);
+            time(&start);
+        }
+        else {
+            if (mraa_gpio_read(butt)) {
+                print_output(NULL);
+            }
+            if (poll(&poll_hold, 1, 0) < 0) {
+                fprintf(stderr, "Unable to poll.\nError message: %s\nError number: %d\n", strerror(errno), errno);
+                exit(1);
+            }
+            if (poll_hold.revents && POLLIN) { //Perform commands
+                char* buffer = (char*)malloc(sizeof(char) * 256);
+                memset(buffer, 0, 256);
+                char* hold = (char*)malloc(sizeof(char) * 256);
+                memset(buffer, 0, 256);
+                int n = read(STDIN_FILENO, buffer, 256);
+                int i;
+                int set = 0;
+                if (n < 0 || n > 256) {
+                    fprintf(stderr, "Unable to read.\nError message: %s\nError number: %d\n", strerror(errno), errno);
+                    exit(1);
+                }
+                for (i = 0; i < n; i++) {
+                    if (buffer[i] == '\n') { //Process the command in hold and prepare for the next one
+                        hold[set] = '\0';
+                        set = 0;
+                        if (debug) debug_print(4);
+                        command_scheduler(hold);
+                        memset(hold, 0, 256);
+                    }
+                    else {
+                        hold[set] = buffer[i];
+                        set++;
+                    }
+                }
+                free(buffer);
+                free(hold);
+            }
+        }
+    }
     return;
 }
 
@@ -91,7 +258,6 @@ int main(int argc, char** argv) {
         {"debug", no_argument, NULL, 'd'}
     }; //Option data structure referenced here: https://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
     int curr_param; //Contains the parameter that is currently being analyzed
-    //int i; //Iterator
 
     //Set params
     while ((curr_param = getopt_long(argc, argv, "p:s:l:d", flags, NULL)) != -1) {
@@ -134,7 +300,9 @@ int main(int argc, char** argv) {
     if (debug && log_filename) debug_print(1);
 
     start_sensors();
-    time_print();
-
+    float fixed = format_temperature(mraa_aio_read(temp));
+    print_output(&fixed);
+    poll_sensors();
+    
     exit(0); //Successful exit
 }
