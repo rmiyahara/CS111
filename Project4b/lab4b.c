@@ -68,18 +68,16 @@ void print_output(float* addon) { //Uses localtime to print formatted time
     time(&timer);
     struct tm* time = localtime(&timer);
     if (addon) {
-        if (reports) {
+        if (reports)
             printf("%.2d:%.2d:%.2d %.1f\n", time->tm_hour, time->tm_min, time->tm_sec, *addon);
-            if (log_filename)
-                dprintf(log_fd, "%.2d:%.2d:%.2d %.1f\n", time->tm_hour, time->tm_min, time->tm_sec, *addon);
-        }
+        if (log_filename)
+            dprintf(log_fd, "%.2d:%.2d:%.2d %.1f\n", time->tm_hour, time->tm_min, time->tm_sec, *addon);
     }
     else {
-        if (reports) {
+        if (reports)
             printf("%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
-            if (log_filename)
-                dprintf(log_fd, "%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
-        }
+        if (log_filename)
+            dprintf(log_fd, "%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
         exit(0); //Either the button was pressed or an OFF command was given
     }
     return;

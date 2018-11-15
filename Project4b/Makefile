@@ -17,4 +17,4 @@ clean:
 	rm -f ./lab4b-804585999.tar.gz ./lab4b
 
 dist: default
-	tar -zcf lab24b-804585999.tar.gz ./Makefile ./README ./lab4b.c ./check.sh
+	tar -zcf lab4b-804585999.tar.gz ./Makefile ./README ./lab4b.c ./check.sh
