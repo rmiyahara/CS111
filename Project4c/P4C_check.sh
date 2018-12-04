@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# sanity check script for Project 4B
+# sanity check script for Project 4C
 #	extract tar file
 #	required README fields (ID, EMAIL, NAME)
 #	required Makefile targets (clean, dist, graphs, tests)
@@ -9,31 +9,44 @@
 #	make clean (returns directory to untared state)
 #	make default, success, creates program
 #	unrecognized parameters
-#	error message for nonexistent input file
-#	identical output for trivial test case
+#	recognizes standard parameters
+#	retrieve TCP/TLS session logs
+#	    confirm successful identification
+#	    confirm successful completion
+#	    confirm server validation of all reports
+
+# Note: if you dummy up the sensor sampling
+#	this test script can be run on any
+#	Linux system.
 #
-LAB="lab3a"
+LAB="lab4c"
 README="README"
 MAKEFILE="Makefile"
 
 EXPECTED=""
 EXPECTEDS=".c"
-PGM="lab3a"
-PGMS="$PGM"
+PGMS="lab4c_tcp lab4c_tls"
 
-SUFFIXES="c cc cpp"
-
-IMAGE="trivial.img"
-OUTPUT="trivial.csv"
+SUFFIXES=""
 
 LIBRARY_URL="www.cs.ucla.edu/classes/cs111/Software"
-PROJECT_URL="www.cs.ucla.edu/classes/cs111/Samples"
 
 EXIT_OK=0
 EXIT_ARG=1
-EXIT_ERR=2
+EXIT_FAIL=1
 
 TIMEOUT=1
+
+SERVER="lever.cs.ucla.edu"
+BASE_URL="http://$SERVER"
+BASE_FILE="/var/spool/CS111_P4C"
+SERVERLOG="server.log"
+CLIENT_PFX="client_"
+CLIENT_SFX="log"
+TCP_PORT=18000
+TLS_PORT=19000
+
+MIN_REPORTS=15
 
 let errors=0
 
@@ -127,20 +140,9 @@ let errors+=$?
 
 # make sure we find files with all the expected suffixes
 if [ -n "$SUFFIXES" ]; then
-	echo "... checking for source files"
-	let found=0
-	for s in $SUFFIXES
-	do
-		names=`echo *.$s`
-		if [ "$names" != '*'.$s ]; then
-			echo "    $names ... OK"
-			let found=1
-		fi
-	done
-	if [ $found -le 0 ]; then
-		echo "no C/C++ source files found"
-		let errors+=1
-	fi
+	echo "... checking for other files of expected types"
+	checkSuffixes $SUFFIXES
+	let errors+=$?
 fi
 
 echo "... checking for required Make targets"
@@ -215,55 +217,126 @@ do
 	fi
 done
 
-# make sure it detects a non-existent image
-echo "... $PGM detects/reports non-existent input image"
-rm -f STDERR
-./$PGM NO_SUCH_INPUT.img > /dev/null 2>STDERR
-if [ $? -eq 0 ]; then
-	echo "ERROR: non-existent input file returns 0"
-	let errors+=1
-else
-	echo "    RC!=0 ... OK"
-fi
-
-if [ ! -s STDERR ]
-then
-	echo "No error message to stderr for non-existent input file"
-	let errors+=1
-else
-	echo -n "    "
-	cat STDERR
-fi
-
 echo
-
-# make sure we have a test image and gloden output
-downLoad $IMAGE $PROJECT_URL
-downLoad $OUTPUT $PROJECT_URL
-
-echo
-
-# run the program on the image and compare the output with golden
-echo ... running $PGM on test image $IMAGE
-timeout $TIMEOUT ./$PGM $IMAGE | sort > TEST.csv
-testRC $? 0
-if [ $? -ne 0 ]; then
-	let errors+=1
+# figure out if we are testing with a local or remote server
+if [ -d "$BASE_FILE" ]; then
+	SERVER="localhost"
 fi
 
-for t in SUPER GROUP BFREE IFREE INODE DIRENT INDIRECT
+# check for successful session records
+for p in TCP TLS
 do
-	grep $t $OUTPUT | sort > GOLDEN.csv
-	cp GOLDEN.csv ~/GOLDEN.csv
-	grep $t TEST.csv > TEST
-	cmp GOLDEN.csv TEST
+	# figure out what the correct command is
+	if [ "$p" == "TCP" ]; then
+		PGM="./lab4c_tcp"
+		PORT=$TCP_PORT
+	else
+		PGM="./lab4c_tls"
+		PORT=$TLS_PORT
+	fi
+	echo "... running $p --id=$student session to $SERVER:$PORT (~1 minute)"
+	$PGM --id=$student --host=$SERVER --log=./LOG_$p $PORT
+
+	testRC $? $EXIT_OK
+	let errors+=$?
+
+	echo ... checking for logging of all commands and actions
+	for key in ID= START PERIOD= SCALE= STOP OFF SHUTDOWN
+	do
+		grep $key LOG_$p > /dev/null
+		if [ $? -ne 0 ]; then
+			echo "ERROR: LOG_$p does not record $key"
+			let errors+=1
+		else
+			echo "    logged $key ... OK"
+		fi
+	done
+
+	egrep '[0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9]+\.[0-9]\>' LOG_$p > /dev/null
+	if [ $? -eq 0 ]; then
+		echo "    valid reports in log file ... OK"
+	else
+		echo "ERROR: no valid reports in log file"
+		let errors+=1
+	fi
+
+	# retrieve the server log
+	rm -f $SERVERLOG
+	sfx="_SERVER"
+	if [ -d "$BASE_FILE/$p$sfx" ]; then
+		# local script testing
+		url="$BASE_FILE/$p$sfx"
+		cp $url/$SERVERLOG .
+		ok=$?
+	else
+		# standard testing is from remote server
+		url=$BASE_URL/$p$sfx
+		wget $url/$SERVERLOG 2> /dev/null
+		ok=$?
+	fi
+
+	if [ $ok -ne 0 ]; then
+		echo "ERROR: Unable to retrieve $SERVERLOG from $url"
+		let errors+=1
+		continue
+	else
+		echo "... retrieve $SERVERLOG from $url ... OK"
+	fi
+
+	# confirm session identification
+	grep "SESSION STARTED: ID=$student" $SERVERLOG > /dev/null
 	if [ $? -ne 0 ]; then
-		echo "    $t ... OUTPUT DOES NOT MATCH"
+		echo "ERROR: No successful $p session establishements found for $student".
+		echo "       Please check client-side and server-side logs to confirm that the"
+		echo "       first command sent to the server was (exactly) \"ID=$student\"".
+		let errors+=1
+		continue
+	else
+		echo "    confirm successful $p identification ... OK"
+	fi
+		
+	# confirm completion
+	grep "SESSION COMPLETED: ID=$student" $SERVERLOG > HITS
+	if [ $? -ne 0 ]; then
+		echo "ERROR: No successful $p session completions for $student"
+		let errors+=1
+		continue
+	else
+		echo "    confirm successful $p completion ... OK"
+	fi
+
+	# confirm a reasonable number of reports
+	rpts=`tail -n1 HITS | cut -f3 -d=`
+	tot=`echo $rpts | cut -f2 -d/`
+	if [ $tot -lt $MIN_REPORTS ]; then
+		echo "ERROR: only $tot $p reports received"
+		let errors+=1
+		continue
+	fi
+
+	good=`echo $rpts | cut -f1 -d/`
+	if [ $good -ne $tot ]; then
+	echo
+		echo "ERROR: only $good/$tot valid $p reports"
 		let errors+=1
 	else
-		echo "    $t ... all" `wc -l < GOLDEN.csv` "output lines match"
+		echo "    good $p reports ... $good/$tot"
 	fi
 done
+
+
+#echo "... usage of expected library functions"
+#for r in sched_yield pthread_mutex_lock pthread_mutex_unlock __sync_lock_test_and_set __sync_lock_release
+#do
+#	grep $r *.c > /dev/null
+#	if [ $? -ne 0 ] 
+#	then
+#		echo "No calls to $r"
+#		let errors+=1
+#	else
+#		echo "    ... $r ... OK"
+#	fi
+#done
 
 echo
 if [ $SLIPDAYS -eq 0 ]

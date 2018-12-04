@@ -1,0 +1,95 @@
+NAME: Alejandra Cervantes,Ryan Miyahara
+EMAIL: alecer@ucla.edu,rmiyahara144@gmail.com
+ID: 104844623,804585999
+
+------------------
+| Included Files |
+------------------
+Within this submission are the following files:
+lab3a.c
+This code compiles to form an executable which must be used in the following format:
+$ ./lab3a IMAGEFILE
+The executable mounts the image and prints the following information about the image using only user code.
+Superblock Summary
+    1. SUPERBLOCK
+    2. Total number of blocks (decimal)
+    3. Total number of i-nodes (decimal)
+    4. Block size (in bytes, decimal)
+    5. I-node size (in bytes, decimal)
+    6. Blocks per group (decimal)
+    7. I-nodes per group (decimal)
+    8. First non-reserved i-node (decimal)
+Group Summary
+    1. GROUP
+    2. Group number (decimal, starting from zero)
+    3. Total number of blocks in this group (decimal)
+    4. Total number of i-nodes in this group (decimal)
+    5. Number of free blocks (decimal)
+    6. Number of free i-nodes (decimal)
+    7. Block number of free block bitmap for this group (decimal)
+    8. Block number of free i-node bitmap for this group (decimal)
+    9. Block number of first block of i-nodes in this group (decimal)
+Free Block Entries
+    1. BFREE
+    2. Number of the free block (decimal)
+Free I-Node Entries
+    1. IFREE
+    2. Number of the free I-Node (decimal)
+I-Node Summary
+    1. INODE
+    2. I-node number (decimal)
+    3. File type ('f' for file, 'd' for directory, 's' for symbolic link, '?" for anything else)
+    4. Mode (low order 12-bits, octal ... suggested format "%o")
+    5. Owner (decimal)
+    6. Group (decimal)
+    7. Link count (decimal)
+    8. Time of last I-node change (mm/dd/yy hh:mm:ss, GMT)
+    9. Modification time (mm/dd/yy hh:mm:ss, GMT)
+    10. Time of last access (mm/dd/yy hh:mm:ss, GMT)
+    11. File size (decimal)
+    12. Number of (512 byte) blocks of disk space (decimal) taken up by this file
+Directory Entries
+    1. DIRENT
+    2. Parent inode number (decimal) ... the I-node number of the directory that contains this entry
+    3. Logical byte offset (decimal) of this entry within the directory
+    4. I-node number of the referenced file (decimal)
+    5. Entry length (decimal)
+    6. Name length (decimal)
+    7. Name (string, surrounded by single-quotes). Don't worry about escaping, we promise there will
+    be no single-quotes or commas in any of the file names.
+Indirect Block References
+    1. INDIRECT
+    2. I-node number of the owning file (decimal)
+    3. (decimal) level of indirection for the block being scanned ... 1 for single indirect, 2 for double
+    indirect, 3 for triple
+    4. Logical block offset (decimal) represented by the referenced block. If the referenced block is a data
+    block, this is the logical block offset of that block within the file. If the referenced block is a single-
+    or double-indirect block, this is the same as the logical offset of the first data block to which it refers.
+    5. Block number of the (1, 2, 3) indirect block being scanned (decimal) . . . not the highest level block
+    (in the recursive scan), but the lower level block that contains the block reference reported by this entry.
+    6. Block number of the referenced block (decimal)
+This program has the following exit codes.
+0 . . . analysis successful
+1 . . . bad arguments
+2 . . . corruption detected or other processing errors
+
+ext2_fs.h
+This file is a C header file which defines many classes used in lab3a.c. It was provided by the class.
+
+Makefile
+Builds all the executables and has the following targets:
+default
+Compiles lab3a.c with the appropriate flags.
+clean
+Deletes all files lab3a creates.
+dist
+Creates the submission tarball.
+
+--------------
+| References |
+--------------
+man pages:
+http://man7.org/linux/man-pages/man8/debugfs.8.html
+http://man7.org/linux/man-pages/man2/pread.2.html
+http://www.nongnu.org/ext2-doc/ext2.html
+http://man7.org/linux/man-pages/man3/strftime.3.html
