@@ -24,9 +24,9 @@ char* log_filename = NULL; //Holds the filename of the logfile
 int log_fd; //Hold the file descriptor of the logfile
 bool reports = true; //Does not make reports when set to 
 int id = -1; //Set to ID to help find reports
+int port = -1; //Holds the given port number for TCP connection
 char* hostname = NULL; //Holds the host of the connected server
 mraa_aio_context temp; //Refers to the temperature sensor
-mraa_gpio_context butt; //Refers to the button
 
 void debug_print(int mes) {
     switch(mes) {
@@ -44,6 +44,9 @@ void debug_print(int mes) {
             break;
         case 4: //Help with segfault
             printf("Working on command.\n");
+            break;
+        case 5: //Check id, hostname, and port
+            printf("ID: %d, Hostname: %s, Port: %d\n", id, hostname, port);
             break;
         default:
             printf("You shouldn't get here!\n");
@@ -80,7 +83,7 @@ void print_output(float* addon) { //Uses localtime to print formatted time
             printf("%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
         if (log_filename)
             dprintf(log_fd, "%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
-        exit(0); //Either the button was pressed or an OFF command was given
+        exit(0); //OFF command was given
     }
     return;
 }
@@ -170,7 +173,7 @@ void rip_sensors() { //Closes log_fd and sensors
     return;
 }
 
-void start_sensors() { //Initializes temperature sensor and button
+void start_sensors() { //Initializes temperature sensor
     if (debug) debug_print(2);
     //Open temperature sensor
     temp = mraa_aio_init(1);
@@ -277,9 +280,11 @@ int main(int argc, char** argv) {
                     exit(1);
                 }
                 break;
-            case 'i': //TODO: Set ID
+            case 'i':
+                id = atoi(optarg);
                 break;
-            case 'h': //TODO: Set host
+            case 'h':
+                hostname = optarg;
                 break;
             case 'd':
                 debug = true;
@@ -288,6 +293,11 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "Incorrect usage, please use this program in the following format: ./lab4b [--period=# --scale=[CF] --log=filename --debug]\n");
                 exit(1);
         }
+    }
+    port = atoi(argv[optind]);
+    if (port < 0) {
+        fprintf(stderr, "Incorrect usage, please specify a port (doesn't use --port).\n");
+        exit(1);
     }
     if (!log_filename) {
         fprintf(stderr, "Incorrect usage, please use the mandatory --log=FILENAME flag.\n");
@@ -303,6 +313,7 @@ int main(int argc, char** argv) {
     }
     if (debug) debug_print(0);
     if (debug && log_filename) debug_print(1);
+    if (debug) debug_print(5);
 
     start_sensors();
     float fixed = format_temperature(mraa_aio_read(temp));
