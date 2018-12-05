@@ -1,0 +1,85 @@
+NAME: Ryan Miyahara
+EMAIL: rmiyahara144@gmail.com
+ID: 804585999
+
+---------------
+| Preparation |
+---------------
+TCP Logging Server
+Hostname: lever.cs.ucla.edu
+Port: 18000
+
+TLS Logging Server
+Hostname: lever.cs.ucla.edu
+Port: 19000
+
+------------------
+| Included Files |
+------------------
+Within this submission are the following files:
+lab4c_tcp.c
+This file compiles with gcc to create an executable which prints out the current temperature
+(measured by the temperature sensor on the BeagleBone) periodically. It connects to a given host name
+and logs data to it. The executable supports the following flags:
+--period=seconds
+This flag takes in an integer and sets how often the system polls for a new temperature.
+--scale=[FC]
+This flag sets which scale the temperature will be displayed in: (F)ahrenheit or (C)entegrade.
+--log=filename
+This flag will log all of the executables output into the specified file. If the file does not
+exist, it will be made.
+--id=9-digit-number
+This mandatory flag is used to track reports.
+--host=name or address
+This mandatory flag is used to specify a host name to connect to.
+port number
+This non-switch parameter specifies the port number at which this program connects to.
+--debug
+Gives the user helpful output for debugging.
+The executable also takes the following commands from stdin:
+SCALE=F
+This command should cause all subsequent reports to be generated in degrees Fahrenheit.
+SCALE=C
+This command should cause all subsequent reports to be generated in degrees Centegrade
+PERIOD=seconds
+This command should change the number of seconds between reporting intervals. This command
+does not take effect until after the next report.
+STOP
+This command causes the program to stop generating reports, but continues processing input
+commands. If the program is not generating reports, merely logs receipt of the command.
+START
+This command should cause the program to, if stopped, resume generating reports. If the program is
+not stopped, this merely logs a receipt of the command.
+LOG line of text
+This command requires no action beyond logging its receipt (the entire command, including the LOG).
+OFF
+This command should, like pressing the button, output (and log) a time-stamped SHUTDOWN message and
+exit.
+This program supports the following exit codes:
+0: successful run
+1: invalid command-line parameters (e.g., unrecognized parameter, no such host)
+2: other run-time failures (e.g., server rejected or closed session)
+
+lab4c_tls.c
+This file compiles with gcc to create an executable which prints out the current temperature
+(measured by the temperature sensor on the BeagleBone) periodically. It performs the same function as
+lab4c_tcp (accepting the same flags and commands) except it operates by utilizing a TLS connection.
+
+Makefile
+Builds all the executables and has the following targets:
+default
+Compiles lab4c_tcp.c and lab4c_tls.c with the appropriate flags.
+clean
+Deletes all files lab4b creates.
+dist
+Creates the submission tarball.
+tcp
+Compiles only lab4c_tcp.c with the appropriate flags.
+tsl
+Compiles only lab4c_tls with the appropriate flags.
+
+--------------
+| References |
+--------------
+OpenSSL Documentation:
+https://www.openssl.org/docs/manmaster/man7/ssl.html
