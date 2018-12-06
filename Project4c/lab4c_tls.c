@@ -18,6 +18,8 @@ ID: 804585999
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 //Global Variables
 int period = 1; //Determines how often reports are made
@@ -26,12 +28,13 @@ bool debug = false; //If set to true, debug mode is enabled
 char* log_filename = NULL; //Holds the filename of the logfile
 int log_fd; //Hold the file descriptor of the logfile
 bool reports = true; //Does not make reports when set to 
-int id = -1; //Set to ID to help find reports
+char* id = NULL; //Set to ID to help find reports
 int socket_fd = -1; //File descriptor for the socket which this program pulls from
 struct sockaddr_in server_addy; //Initialized using socket connection
 int port = -1; //Holds the given port number for TCP connection
 char* hostname = NULL; //Holds the host of the connected server
 struct hostent *host; //Initialized using hostname
+SSL* ssl_sess; //Holds data for SSL connection
 mraa_aio_context temp; //Refers to the temperature sensor
 
 void debug_print(int mes) {
@@ -52,7 +55,7 @@ void debug_print(int mes) {
             printf("Working on command.\n");
             break;
         case 5: //Check id, hostname, and port
-            printf("ID: %d, Hostname: %s, Port: %d\n", id, hostname, port);
+            printf("ID: %s, Hostname: %s, Port: %d\n", id, hostname, port);
             break;
         case 6: //Socket setup
             printf("Socket has been created.\n");
@@ -62,6 +65,15 @@ void debug_print(int mes) {
             break;
         case 8: //Port set and connected
             printf("Port set and connected.\n");
+            break;
+        case 9: //In start_SSL
+            printf("OpenSSL has been initialized.\n");
+            break;
+        case 10: //In start_SSL
+            printf("SSL_client setup.\n");
+            break;
+        case 11: //In start_SSL
+            printf("OpenSSL socket setup and connected.\n");
             break;
         default:
             printf("You shouldn't get here!\n");
@@ -98,8 +110,45 @@ void start_socket() { //Creates and connects socket
 }
 
 void record_id() { //Marks ID to records for grading
-    dprintf(log_fd, "ID=%d\n", id); //Write to log
-    dprintf(socket_fd, "ID=%d\n", id); //Write to socket
+    dprintf(log_fd, "ID=%s\n", id); //Write to log
+    
+    //Write to SSL
+    char* id_record = (char*)malloc(256 * sizeof(char)); //Holds "ID=IDNUMBER"
+    sprintf(id_record, "ID=%s\n", id);
+    if (SSL_write(ssl_sess, id_record, strlen(id_record)) < 0) {
+        fprintf(stderr, "Error writing to SSL.\n");
+        exit(2);
+    }
+    return;
+}
+
+void start_SSL() {
+    //Initialize OpenSSL
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+    if (SSL_library_init() < 0) {
+        fprintf(stderr, "Error staring SSL.\n");
+        exit(2);
+    }
+    if (debug) debug_print(9);
+    //Create SSL_CTX
+    SSL_CTX * ssl_context = SSL_CTX_new(TLSv1_client_method());
+    if (!ssl_context) {
+        fprintf(stderr, "Error accessing TLSv1_client_method.\n");
+        exit(2);
+    }
+    if (debug) debug_print(10);
+    //Set ssl_sess and connect socket
+    ssl_sess = SSL_new(ssl_context);
+    if (SSL_set_fd(ssl_sess, socket_fd) < 0) {
+        fprintf(stderr, "Unable to set SSL_fd.\n");
+        exit(2);
+    }
+    if (SSL_connect(ssl_sess) < 1) {
+        fprintf(stderr, "Unable to connect SSL.\n");
+        exit(2);
+    }
+    if (debug) debug_print(11);
     return;
 }
 
@@ -122,14 +171,28 @@ void print_output(float* addon) { //Uses localtime to print formatted time
     time(&timer);
     struct tm* time = localtime(&timer);
     if (addon) {
-        if (reports)
-            dprintf(socket_fd, "%.2d:%.2d:%.2d %.1f\n", time->tm_hour, time->tm_min, time->tm_sec, *addon);
+        if (reports) {
+            char* print_me = (char*)malloc(256 * sizeof(char));
+            sprintf(print_me, "%.2d:%.2d:%.2d %.1f\n", time->tm_hour, time->tm_min, time->tm_sec, *addon);
+            if (SSL_write(ssl_sess, print_me, strlen(print_me)) < 0) {
+                fprintf(stderr, "Error writing to SSL.\n");
+                exit(2);
+            }
+            free(print_me);
+        }
         if (log_filename)
             dprintf(log_fd, "%.2d:%.2d:%.2d %.1f\n", time->tm_hour, time->tm_min, time->tm_sec, *addon);
     }
     else {
-        if (reports)
-            dprintf(socket_fd, "%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
+        if (reports) {
+            char* print_me = (char*)malloc(256 * sizeof(char));
+            sprintf(print_me, "%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
+            if (SSL_write(ssl_sess, print_me, strlen(print_me)) < 0) {
+                fprintf(stderr, "Error writing to SSL.\n");
+                exit(2);
+            }
+            free(print_me);
+        }
         if (log_filename)
             dprintf(log_fd, "%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
         exit(0); //OFF command was given
@@ -259,7 +322,7 @@ void poll_sensors() { //Polls sensors for data and STD_IN for commands
                 memset(buffer, 0, 256);
                 char* hold = (char*)malloc(sizeof(char) * 256);
                 memset(buffer, 0, 256);
-                int n = read(socket_fd, buffer, 256);
+                int n = SSL_read(ssl_sess, buffer, 256);
                 int i;
                 int set = 0;
                 if (n < 0 || n > 256) {
@@ -330,7 +393,7 @@ int main(int argc, char** argv) {
                 }
                 break;
             case 'i':
-                id = atoi(optarg);
+                id = optarg;
                 break;
             case 'h':
                 hostname = optarg;
@@ -347,7 +410,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Incorrect usage, please use the mandatory --log=FILENAME flag.\n");
         exit(1);
     }
-    if (id < 0) {
+    if (!id) {
         fprintf(stderr, "Incorrect usage, please use the mandatory --id=IDNUMBER flag.\n");
         exit(1);
     }
@@ -367,6 +430,7 @@ int main(int argc, char** argv) {
 
     start_sensors();
     start_socket();
+    start_SSL();
     record_id();
     float fixed = format_temperature(mraa_aio_read(temp));
     print_output(&fixed);
