@@ -15,6 +15,9 @@ ID: 804585999
 #include <poll.h>
 #include "fcntl.h"
 #include <math.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <netinet/in.h>
 
 //Global Variables
 int period = 1; //Determines how often reports are made
@@ -24,8 +27,11 @@ char* log_filename = NULL; //Holds the filename of the logfile
 int log_fd; //Hold the file descriptor of the logfile
 bool reports = true; //Does not make reports when set to 
 int id = -1; //Set to ID to help find reports
+int socket_fd = -1; //File descriptor for the socket which this program pulls from
+struct sockaddr_in server_addy; //Initialized using socket connection
 int port = -1; //Holds the given port number for TCP connection
 char* hostname = NULL; //Holds the host of the connected server
+struct hostent *host; //Initialized using hostname
 mraa_aio_context temp; //Refers to the temperature sensor
 
 void debug_print(int mes) {
@@ -48,9 +54,52 @@ void debug_print(int mes) {
         case 5: //Check id, hostname, and port
             printf("ID: %d, Hostname: %s, Port: %d\n", id, hostname, port);
             break;
+        case 6: //Socket setup
+            printf("Socket has been created.\n");
+            break;
+        case 7: //Server setup
+            printf("Server has been setup.\n");
+            break;
+        case 8: //Port set and connected
+            printf("Port set and connected.\n");
+            break;
         default:
             printf("You shouldn't get here!\n");
     }
+    return;
+}
+
+void start_socket() { //Creates and connects socket
+    //Set up socket_fd
+    socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_fd < 0) {
+        fprintf(stderr, "Unable to open socket.\n");
+        exit(2);
+    }
+    if (debug) debug_print(6);
+    //Set up server
+    host = gethostbyname(hostname);
+    if (!host) {
+        fprintf(stderr, "Unable to setup host.\n");
+        exit(2);
+    }
+    memset((char*)&server_addy, 0, sizeof(server_addy));
+    server_addy.sin_family = AF_INET;
+    bcopy((char*)host->h_addr, (char*)&server_addy.sin_addr, host->h_length);
+    if (debug) debug_print(7);
+    //Set port and connected
+    server_addy.sin_port = htons(port);
+    if (connect(socket_fd, (struct sockaddr*)&server_addy, sizeof(server_addy)) < 0) {
+        fprintf(stderr, "Unable to connect socket.\n");
+        exit(2);
+    }
+    if (debug) debug_print(8);
+    return;
+}
+
+void record_id() { //Marks ID to records for grading
+    dprintf(log_fd, "ID=%d\n", id); //Write to log
+    dprintf(socket_fd, "ID=%d\n", id); //Write to socket
     return;
 }
 
@@ -74,13 +123,13 @@ void print_output(float* addon) { //Uses localtime to print formatted time
     struct tm* time = localtime(&timer);
     if (addon) {
         if (reports)
-            printf("%.2d:%.2d:%.2d %.1f\n", time->tm_hour, time->tm_min, time->tm_sec, *addon);
+            dprintf(socket_fd, "%.2d:%.2d:%.2d %.1f\n", time->tm_hour, time->tm_min, time->tm_sec, *addon);
         if (log_filename)
             dprintf(log_fd, "%.2d:%.2d:%.2d %.1f\n", time->tm_hour, time->tm_min, time->tm_sec, *addon);
     }
     else {
         if (reports)
-            printf("%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
+            dprintf(socket_fd, "%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
         if (log_filename)
             dprintf(log_fd, "%.2d:%.2d:%.2d SHUTDOWN\n", time->tm_hour, time->tm_min, time->tm_sec);
         exit(0); //OFF command was given
@@ -174,7 +223,6 @@ void rip_sensors() { //Closes log_fd and sensors
 }
 
 void start_sensors() { //Initializes temperature sensor
-    if (debug) debug_print(2);
     //Open temperature sensor
     temp = mraa_aio_init(1);
     if (!temp) {
@@ -182,12 +230,13 @@ void start_sensors() { //Initializes temperature sensor
         exit(1);
     }
     atexit(rip_sensors);
+    if (debug) debug_print(2);
     return;
 }
 
 void poll_sensors() { //Polls sensors for data and STD_IN for commands
     struct pollfd poll_hold;
-    poll_hold.fd = STDIN_FILENO;
+    poll_hold.fd = socket_fd;
     poll_hold.events = POLLIN | POLLERR | POLLHUP;
     time_t start;
     time(&start);
@@ -210,7 +259,7 @@ void poll_sensors() { //Polls sensors for data and STD_IN for commands
                 memset(buffer, 0, 256);
                 char* hold = (char*)malloc(sizeof(char) * 256);
                 memset(buffer, 0, 256);
-                int n = read(STDIN_FILENO, buffer, 256);
+                int n = read(socket_fd, buffer, 256);
                 int i;
                 int set = 0;
                 if (n < 0 || n > 256) {
@@ -317,6 +366,8 @@ int main(int argc, char** argv) {
     if (debug) debug_print(5);
 
     start_sensors();
+    start_socket();
+    record_id();
     float fixed = format_temperature(mraa_aio_read(temp));
     print_output(&fixed);
     poll_sensors();
