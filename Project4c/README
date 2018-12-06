@@ -83,3 +83,7 @@ Compiles only lab4c_tls with the appropriate flags.
 --------------
 OpenSSL Documentation:
 https://www.openssl.org/docs/manmaster/man7/ssl.html
+Thank you Alex:
+https://ccle.ucla.edu/pluginfile.php/2595746/mod_resource/content/0/P4C.pdf
+Most of my code was taken from my Project4B:
+https://github.com/rmiyahara/CS111/tree/master/Project4b
