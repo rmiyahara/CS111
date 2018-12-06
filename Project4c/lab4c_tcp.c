@@ -294,11 +294,6 @@ int main(int argc, char** argv) {
                 exit(1);
         }
     }
-    port = atoi(argv[optind]);
-    if (port < 0) {
-        fprintf(stderr, "Incorrect usage, please specify a port (doesn't use --port).\n");
-        exit(1);
-    }
     if (!log_filename) {
         fprintf(stderr, "Incorrect usage, please use the mandatory --log=FILENAME flag.\n");
         exit(1);
@@ -309,6 +304,12 @@ int main(int argc, char** argv) {
     }
     if (!hostname) {
         fprintf(stderr, "Incorrect usage, please use the mandatory --host=HOSTNAME flag.\n");
+        exit(1);
+    }
+    if (argv[optind])
+        port = atoi(argv[optind]);
+    if (port < 0) {
+        fprintf(stderr, "Incorrect usage, please specify a port (doesn't use --port).\n");
         exit(1);
     }
     if (debug) debug_print(0);
